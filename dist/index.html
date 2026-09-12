@@ -6,6 +6,7 @@
     <meta name="description" content="AI 기반 주조 공정 품질 예방 관제">
     <title>Foundry Guard — 품질 예방 관제</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="spec-ranks.css">
   </head>
   <body>
     <div class="app-shell">
@@ -54,9 +55,9 @@
           </section>
 
           <section id="specs" class="view" aria-labelledby="specs-title">
-            <div class="section-title"><div><p class="eyebrow">Spec centre</p><h2 id="specs-title">모델 중요도에 따라 관리합니다</h2></div></div>
-            <article class="notice"><b>후보 운영구간입니다.</b> 저위험 생산 이력의 5~95백분위 범위를 계산한 Shadow 기준이며, 현업 승인 규격·SPC 관리한계와는 구분해야 합니다.</article>
-            <article class="spec-panel"><div class="panel-heading"><div><p class="eyebrow">Feature bands</p><h3>AI 운영구간 후보와 현재값</h3></div></div><div class="table-scroll"><table class="spec-table"><thead><tr><th>등급</th><th>관리 항목</th><th>중요도</th><th>AI 후보 운영구간</th><th>최근값</th><th>상태</th><th>운영 단계</th></tr></thead><tbody id="spec-rows"></tbody></table></div></article>
+            <div class="section-title"><div><p class="eyebrow">Spec centre</p><h2 id="specs-title">AI가 제안하는 상·하한으로 관리합니다</h2></div></div>
+            <article class="notice"><b>A</b> 모델 중요도 상위 항목은 저위험 생산 분포로 안전운전 상·하한을 제안합니다. <b>B</b>는 중요도가 낮아도 평균±5σ로 큰 변동을 감시합니다. <b>C</b>는 분포만 관찰하며 관리선을 만들지 않습니다.</article>
+            <div id="rank-specs" class="rank-specs"></div>
           </section>
 
           <section id="alerts" class="view" aria-labelledby="alerts-title">

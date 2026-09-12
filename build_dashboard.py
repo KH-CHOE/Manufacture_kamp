@@ -102,24 +102,37 @@ def fit_model(events: pd.DataFrame, features: list[str]) -> tuple[np.ndarray, di
     return probabilities, importance, metrics, model, medians.to_dict()
 
 
-def feature_specs(events: pd.DataFrame, probabilities: np.ndarray, importance: dict[str, float]) -> dict[str, dict[str, float | str]]:
+def feature_specs(events: pd.DataFrame, probabilities: np.ndarray, importance: dict[str, float]) -> dict[str, dict[str, float | str | None]]:
+    """Create provisional management limits from model relevance and process variation.
+
+    A: model-selected safety band from low-risk production; B: 5σ variation limits;
+    C: observed only until a justifiable management rule exists.
+    """
     ranked = sorted(importance, key=importance.get, reverse=True)
     low_risk = events.loc[probabilities < 0.30]
-    specs: dict[str, dict[str, float | str]] = {}
+    specs: dict[str, dict[str, float | str | None]] = {}
     for position, feature in enumerate(ranked):
         values = pd.to_numeric(events[feature], errors="coerce").dropna()
         candidate = pd.to_numeric(low_risk[feature], errors="coerce").dropna()
         if len(values) < 20 or len(candidate) < 20:
             continue
         grade = "A" if position < 5 else "B" if position < 10 else "C"
+        mean, std = float(values.mean()), float(values.std(ddof=0))
+        if grade == "A":
+            low, high, basis = float(candidate.quantile(0.05)), float(candidate.quantile(0.95)), "AI 안전운전 범위 (저위험 5~95%)"
+        elif grade == "B":
+            low, high, basis = mean - 5 * std, mean + 5 * std, "공정 변동 관리범위 (평균 ± 5σ)"
+        else:
+            low, high, basis = None, None, "관리선 미설정 (분포 관찰)"
         specs[feature] = {
             "label": LABELS.get(feature, feature),
             "grade": grade,
             "importance": round(float(importance[feature]), 4),
-            "low": round(float(candidate.quantile(0.05)), 3),
-            "high": round(float(candidate.quantile(0.95)), 3),
-            "mean": round(float(values.mean()), 3),
-            "std": round(float(values.std(ddof=0)), 3),
+            "low": round(low, 3) if low is not None else None,
+            "high": round(high, 3) if high is not None else None,
+            "mean": round(mean, 3),
+            "std": round(std, 3),
+            "basis": basis,
         }
     return specs
 
@@ -150,7 +163,7 @@ def build_payload() -> dict[str, object]:
     events, features = load_events()
     probabilities, importance, metrics, _, _ = fit_model(events, features)
     specs = feature_specs(events, probabilities, importance)
-    shown_features = list(specs)[:12]
+    shown_features = list(specs)
     return {
         "threshold": THRESHOLD,
         "metrics": metrics,

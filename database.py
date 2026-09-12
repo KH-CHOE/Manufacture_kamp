@@ -54,7 +54,7 @@ def dashboard_payload(artifact: dict[str, Any], max_events: int = 8_000) -> dict
     with connect() as conn:
         summary = conn.execute("SELECT COUNT(*) n, MIN(event_at) first_at, MAX(event_at) last_at FROM process_events").fetchone()
     specs = artifact["specs"]
-    shown = list(specs)[:12]
+    shown = list(specs)
     return {"threshold": artifact["threshold"], "metrics": artifact["metrics"], "labels": {key: artifact["labels"].get(key, key) for key in shown}, "specs": {key: specs[key] for key in shown}, "events": events, "source": {"rows": summary["n"], "from": summary["first_at"], "to": summary["last_at"]}}
 
 

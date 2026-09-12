@@ -8,7 +8,8 @@
   const range = (numbers) => [Math.min(...numbers), Math.max(...numbers)];
   const escape = (text) => String(text).replace(/[&<>\"]/g, (char) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" })[char]);
   const current = (rows, feature) => [...rows].reverse().find((row) => row.v[feature] != null)?.v[feature];
-  const outside = (value, spec) => value != null && (value < spec.low || value > spec.high);
+  const hasBand = (spec) => Number.isFinite(spec.low) && Number.isFinite(spec.high);
+  const outside = (value, spec) => hasBand(spec) && value != null && (value < spec.low || value > spec.high);
   const priority = (event) => {
     const breached = features.filter((feature) => outside(event.v[feature], D.specs[feature]));
     return { breached, critical: event.p >= D.threshold && breached.some((feature) => D.specs[feature].grade === "A"), warning: event.p >= D.threshold || breached.length > 0 };
@@ -52,7 +53,7 @@
     const state = status.critical ? ["즉시 확인", "복합 위험", "주조 조건 변경 전, 아래 항목과 센서 상태를 확인하세요."] : status.warning ? ["선제 점검", "주의 신호", "불량 예측 또는 후보 운영구간 이탈을 확인했습니다."] : ["안정 관찰", "현재 정상", "현재 이벤트는 위험 임계값과 후보 운영구간에서 안정적입니다."];
     $("#action-panel").className = `action-panel ${status.warning ? "caution" : "safe"}`;
     $("#action-panel").innerHTML = `<p class="eyebrow">Recommended action</p><h3>${state[0]}<br>${state[1]}</h3><p>${state[2]}</p><div class="next-step"><b>다음 조치</b><br>${status.breached.slice(0, 3).map((feature) => `${label(feature)}: 실제값·센서·SOP 확인`).join("<br>") || "최근 위험도 추이를 유지 관찰"}</div>`;
-    $("#feature-signals").innerHTML = features.slice(0, 6).map((feature) => { const spec = D.specs[feature], value = current(rows, feature), alert = outside(value, spec), position = Math.max(0, Math.min(100, (value - spec.low) / Math.max(spec.high - spec.low, .001) * 100)); return `<div class="signal-row"><span>${escape(label(feature))} <b class="badge ${spec.grade.toLowerCase()}">${spec.grade}</b></span><span class="signal-track"><b></b><i style="left:${position}%"></i></span><span class="signal-state ${alert ? "alert" : ""}">${alert ? "후보 이탈" : "후보 내"}</span></div>`; }).join("");
+    $("#feature-signals").innerHTML = features.filter((feature) => hasBand(D.specs[feature])).slice(0, 6).map((feature) => { const spec = D.specs[feature], value = current(rows, feature), alert = outside(value, spec), position = Math.max(0, Math.min(100, (value - spec.low) / Math.max(spec.high - spec.low, .001) * 100)); return `<div class="signal-row"><span>${escape(label(feature))} <b class="badge ${spec.grade.toLowerCase()}">${spec.grade}</b></span><span class="signal-track"><b></b><i style="left:${position}%"></i></span><span class="signal-state ${alert ? "alert" : ""}">${alert ? "상·하한 이탈" : "상·하한 내"}</span></div>`; }).join("");
     const recent = [...rows].reverse().filter((event) => event.p >= D.threshold).slice(0, 6);
     $("#recent-events").innerHTML = recent.map((event) => { const p = priority(event); return `<tr><td>${event.t.slice(5)}</td><td>${pct(event.p)}</td><td><span class="badge ${event.y ? "a" : "normal"}">${event.y ? "불량" : "미확정"}</span></td><td>${p.breached.slice(0,2).map(label).join(", ") || "예측 위험"}</td></tr>`; }).join("") || `<tr><td colspan="4" class="muted">해당 기간에 고위험 이벤트가 없습니다.</td></tr>`;
   }
@@ -64,7 +65,8 @@
     }
     const feature = $("#feature-select").value || features[0], spec = D.specs[feature], values = rows.map((event) => event.v[feature]).filter(Number.isFinite);
     $("#series-title").textContent = `${label(feature)} 시계열`;
-    $("#process-chart").innerHTML = svgLine(rows, (event) => event.v[feature], { host: "#process-chart", band: [spec.low, spec.high], domain: [Math.min(...values, spec.low), Math.max(...values, spec.high)] });
+    const limits = hasBand(spec) ? [spec.low, spec.high] : [];
+    $("#process-chart").innerHTML = svgLine(rows, (event) => event.v[feature], { host: "#process-chart", band: hasBand(spec) ? limits : undefined, domain: [Math.min(...values, ...limits), Math.max(...values, ...limits)] });
     const good = rows.filter((event) => !event.y).map((event) => event.v[feature]).filter(Number.isFinite), bad = rows.filter((event) => event.y).map((event) => event.v[feature]).filter(Number.isFinite);
     $("#distribution-chart").innerHTML = distributionSvg(good, bad, "#distribution-chart", label(feature));
     $("#scatter-chart").innerHTML = scatterSvg(rows, "#scatter-chart");
@@ -81,8 +83,19 @@
     const host = $(hostId), width = Math.max(host.clientWidth || 500, 280), height = Math.max(host.clientHeight || 250, 200), pad = { l: 42, r: 15, t: 15, b: 32 }, xKey = "injection_pressure", yKey = "bottom_temp2", subset = rows.filter((_, index) => index % Math.ceil(rows.length / 1200) === 0), xs=subset.map(e=>e.v[xKey]).filter(Number.isFinite),ys=subset.map(e=>e.v[yKey]).filter(Number.isFinite); if(!xs.length||!ys.length)return ""; const [x0,x1]=range(xs),[y0,y1]=range(ys), x=v=>pad.l+(v-x0)/(x1-x0||1)*(width-pad.l-pad.r),y=v=>height-pad.b-(v-y0)/(y1-y0||1)*(height-pad.t-pad.b); return `<svg class="svg-chart" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">${subset.map(e=>Number.isFinite(e.v[xKey])&&Number.isFinite(e.v[yKey])?`<circle class="${e.y?"scatter-bad":"scatter-good"}" cx="${x(e.v[xKey])}" cy="${y(e.v[yKey])}" r="2.2"/>`:"").join("")}<text class="axis-label" x="${pad.l}" y="${height-5}">주입 압력</text><text class="axis-label" text-anchor="end" x="${width-pad.r}" y="${height-5}">하부 온도 2</text></svg>`;
   }
 
+  function miniBoxSvg(values, spec, feature) {
+    const sorted = values.filter(Number.isFinite).sort((a, b) => a - b); if (!sorted.length) return "";
+    const q = (p) => sorted[Math.floor((sorted.length - 1) * p)];
+    const marks = [q(.05), q(.25), q(.5), q(.75), q(.95)];
+    const domain = hasBand(spec) ? [Math.min(marks[0], spec.low), Math.max(marks[4], spec.high)] : [marks[0], marks[4]];
+    const x = (value) => 8 + (value - domain[0]) / Math.max(domain[1] - domain[0], .001) * 194;
+    const limits = hasBand(spec) ? `<line class="limit" x1="${x(spec.low)}" x2="${x(spec.low)}" y1="2" y2="32"/><line class="limit" x1="${x(spec.high)}" x2="${x(spec.high)}" y1="2" y2="32"/>` : `<line class="no-limit" x1="8" x2="202" y1="17" y2="17"/>`;
+    return `<svg class="mini-box" viewBox="0 0 210 34" role="img" aria-label="${escape(label(feature))} 분포와 관리선"><line class="track" x1="${x(marks[0])}" x2="${x(marks[4])}" y1="17" y2="17"/><rect class="box" x="${x(marks[1])}" y="8" width="${Math.max(x(marks[3])-x(marks[1]),1)}" height="18"/><line class="median" x1="${x(marks[2])}" x2="${x(marks[2])}" y1="8" y2="26"/>${limits}</svg>`;
+  }
+
   function renderSpecs(rows) {
-    $("#spec-rows").innerHTML = features.map((feature) => { const spec = D.specs[feature], value = current(rows, feature), alert = outside(value, spec), position = Math.max(0, Math.min(100, (value-spec.low)/Math.max(spec.high-spec.low,.001)*100)); return `<tr><td><span class="badge ${spec.grade.toLowerCase()}">${spec.grade}</span></td><td>${escape(label(feature))}</td><td>${pct(spec.importance)}</td><td><span class="spec-range"><small>${fmt(spec.low)}</small><span class="range-track"><b></b><i style="left:${position}%"></i></span><small>${fmt(spec.high)}</small></span></td><td>${fmt(value)}</td><td><span class="badge ${alert ? "warning" : "normal"}">${alert ? "후보 이탈" : "후보 내"}</span></td><td><span class="stage">Shadow 후보</span></td></tr>`; }).join("");
+    const copy = { A: ["A · 예방 제어", "모델 중요도 상위 5개. 저위험 생산 이력의 5~95%를 AI 안전운전 상·하한으로 제안합니다."], B: ["B · 변동 감시", "그 다음 중요도 항목. 평균±5σ를 상·하한으로 두고 큰 공정 변동을 감시합니다."], C: ["C · 관찰", "나머지 항목. 현재는 분포만 기록하며 상·하한은 만들지 않습니다."] };
+    $("#rank-specs").innerHTML = ["A", "B", "C"].map((rank) => { const items = features.filter((feature) => D.specs[feature].grade === rank); return `<article class="rank-lane rank-${rank.toLowerCase()}"><div class="rank-heading"><div><h3>${copy[rank][0]}</h3><p>${copy[rank][1]}</p></div></div><div class="table-scroll"><table><thead><tr><th>항목</th><th>중요도</th><th>분포와 관리선</th><th>하한</th><th>상한</th><th>최근값</th><th>상태</th></tr></thead><tbody>${items.map((feature) => { const spec = D.specs[feature], value = current(rows, feature), alert = outside(value, spec), values = rows.map((event) => event.v[feature]); return `<tr><td>${escape(label(feature))}</td><td>${pct(spec.importance)}</td><td>${miniBoxSvg(values, spec, feature)}</td><td>${hasBand(spec) ? fmt(spec.low) : "—"}</td><td>${hasBand(spec) ? fmt(spec.high) : "—"}</td><td>${fmt(value)}</td><td><span class="badge ${alert ? "warning" : hasBand(spec) ? "normal" : "c"}">${alert ? "이탈" : hasBand(spec) ? "관리 중" : "관찰"}</span></td></tr>`; }).join("")}</tbody></table></div></article>`; }).join("");
   }
 
   function renderAlerts(rows) {
