@@ -1,5 +1,5 @@
 (() => {
-  const D = window.FOUNDRY_DATA;
+  let D = window.FOUNDRY_DATA;
   const $ = (selector) => document.querySelector(selector);
   const features = Object.keys(D.specs);
   const label = (feature) => D.labels[feature] || feature;
@@ -100,5 +100,14 @@
   $("#reset-filter").addEventListener("click", () => { $("#from-date").value = dates[0]; $("#to-date").value = dates.at(-1); $("#risk-filter").value = "all"; render(); });
   document.querySelectorAll("[data-view]").forEach((link) => link.addEventListener("click", (event) => { event.preventDefault(); switchView(link.dataset.view); history.replaceState(null, "", `#${link.dataset.view}`); }));
   window.addEventListener("resize", () => render());
-  switchView(location.hash.slice(1) || "overview");
+  async function start() {
+    try {
+      const response = await fetch("/api/dashboard");
+      if (response.ok) D = await response.json();
+    } catch (_) {
+      // ponytail: data.js remains a local-file fallback; use the API whenever FastAPI is running.
+    }
+    switchView(location.hash.slice(1) || "overview");
+  }
+  start();
 })();

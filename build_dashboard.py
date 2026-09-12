@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import pickle
 from pathlib import Path
 
 import numpy as np
@@ -14,6 +15,7 @@ from sklearn.metrics import average_precision_score, f1_score, precision_score, 
 BASE = Path(__file__).parent
 CSV = BASE / "Input.csv"
 OUT = BASE / "manufacturing_control_dashboard.html"
+MODEL_OUT = BASE / "artifacts" / "defect_model.pkl"
 THRESHOLD = 0.68
 MAX_SCATTER_POINTS = 8_000
 
@@ -62,7 +64,7 @@ def undersample(x: pd.DataFrame, y: np.ndarray, ratio: float = 0.5) -> tuple[pd.
     return x.iloc[keep], y[keep]
 
 
-def fit_model(events: pd.DataFrame, features: list[str]) -> tuple[np.ndarray, dict[str, float], dict[str, float]]:
+def fit_model(events: pd.DataFrame, features: list[str]) -> tuple[np.ndarray, dict[str, float], dict[str, float], RandomForestClassifier, dict[str, float]]:
     x = events[features].copy()
     split = int(len(x) * 0.8)
     medians = x.iloc[:split].median(numeric_only=True)
@@ -97,7 +99,7 @@ def fit_model(events: pd.DataFrame, features: list[str]) -> tuple[np.ndarray, di
     model.fit(full_x, full_y)
     probabilities = model.predict_proba(x)[:, 1]
     importance = dict(zip(features, model.feature_importances_, strict=True))
-    return probabilities, importance, metrics
+    return probabilities, importance, metrics, model, medians.to_dict()
 
 
 def feature_specs(events: pd.DataFrame, probabilities: np.ndarray, importance: dict[str, float]) -> dict[str, dict[str, float | str]]:
@@ -146,7 +148,7 @@ def sampled_records(events: pd.DataFrame, probabilities: np.ndarray, shown_featu
 
 def build_payload() -> dict[str, object]:
     events, features = load_events()
-    probabilities, importance, metrics = fit_model(events, features)
+    probabilities, importance, metrics, _, _ = fit_model(events, features)
     specs = feature_specs(events, probabilities, importance)
     shown_features = list(specs)[:12]
     return {
@@ -161,6 +163,25 @@ def build_payload() -> dict[str, object]:
             "to": events["event_at"].max().strftime("%Y-%m-%d %H:%M:%S"),
         },
     }
+
+
+def train_and_save_model() -> tuple[pd.DataFrame, np.ndarray, dict[str, object]]:
+    """Train once from the historical CSV and persist the production inference artifact."""
+    events, features = load_events()
+    probabilities, importance, metrics, model, medians = fit_model(events, features)
+    specs = feature_specs(events, probabilities, importance)
+    artifact: dict[str, object] = {
+        "model": model,
+        "features": features,
+        "medians": medians,
+        "threshold": THRESHOLD,
+        "metrics": metrics,
+        "labels": LABELS,
+        "specs": specs,
+    }
+    MODEL_OUT.parent.mkdir(exist_ok=True)
+    MODEL_OUT.write_bytes(pickle.dumps(artifact))
+    return events, probabilities, artifact
 
 
 TEMPLATE = r'''<!doctype html>
