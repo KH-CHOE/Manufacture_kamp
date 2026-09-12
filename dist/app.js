@@ -1,7 +1,7 @@
 (() => {
   let D = window.FOUNDRY_DATA;
   const $ = (selector) => document.querySelector(selector);
-  const features = Object.keys(D.specs);
+  let features = Object.keys(D.specs);
   const label = (feature) => D.labels[feature] || feature;
   const fmt = (value, digits = 2) => Number(value ?? 0).toLocaleString("ko-KR", { maximumFractionDigits: digits });
   const pct = (value) => `${(Number(value || 0) * 100).toFixed(1)}%`;
@@ -116,7 +116,7 @@
   async function start() {
     try {
       const response = await fetch("/api/dashboard");
-      if (response.ok) D = await response.json();
+      if (response.ok) { D = await response.json(); features = Object.keys(D.specs); }
     } catch (_) {
       // ponytail: data.js remains a local-file fallback; use the API whenever FastAPI is running.
     }
