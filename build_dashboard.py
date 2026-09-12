@@ -259,6 +259,4 @@ def build() -> Path:
 
 
 if __name__ == "__main__":
-    output = build()
-    assert output.exists() and output.stat().st_size > 100_000
-    print(f"Wrote {output.name} ({output.stat().st_size:,} bytes)")
+    print("Use train_model.py to train and seed the current dashboard.")
