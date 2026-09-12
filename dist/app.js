@@ -58,6 +58,10 @@
   }
 
   function renderAnalysis(rows) {
+    if (!rows.length) {
+      ["#process-chart", "#distribution-chart", "#scatter-chart"].forEach((id) => { $(id).innerHTML = `<p class="muted">필터 조건에 맞는 데이터가 없습니다.</p>`; });
+      return;
+    }
     const feature = $("#feature-select").value || features[0], spec = D.specs[feature], values = rows.map((event) => event.v[feature]).filter(Number.isFinite);
     $("#series-title").textContent = `${label(feature)} 시계열`;
     $("#process-chart").innerHTML = svgLine(rows, (event) => event.v[feature], { host: "#process-chart", band: [spec.low, spec.high], domain: [Math.min(...values, spec.low), Math.max(...values, spec.high)] });
