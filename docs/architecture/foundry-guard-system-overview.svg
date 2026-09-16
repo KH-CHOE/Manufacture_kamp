@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1120" viewBox="0 0 1800 1120" role="img" aria-labelledby="title desc">
+  <title id="title">Foundry Guard 통합 관제 시스템 구조도</title>
+  <desc id="desc">Vercel 대시보드, FastAPI, Supabase, 예측 모델, 친구의 LLM 챗봇, 알림 시스템과 안전한 공유 범위를 보여준다.</desc>
+  <defs>
+    <linearGradient id="head" x1="0" x2="1"><stop stop-color="#0b1f35"/><stop offset="1" stop-color="#123d5a"/></linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#10243a" flood-opacity=".13"/></filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M1,1 L11,6 L1,11 Z" fill="#50677d"/></marker>
+    <marker id="orangeArrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M1,1 L11,6 L1,11 Z" fill="#ca7b28"/></marker>
+    <style>
+      .title{font:700 42px -apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sans KR',sans-serif;fill:#fff}.sub{font:400 19px -apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sans KR',sans-serif;fill:#c9dbe9}.section{font:700 18px -apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sans KR',sans-serif;letter-spacing:1px;fill:#55718b}.node-title{font:700 25px -apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sans KR',sans-serif;fill:#16334c}.node-text{font:400 18px -apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sans KR',sans-serif;fill:#4c657c}.small{font:500 16px -apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sans KR',sans-serif;fill:#4c657c}.tiny{font:500 15px -apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sans KR',sans-serif;fill:#698096}.line{fill:none;stroke:#50677d;stroke-width:4;marker-end:url(#arrow)}.dash{fill:none;stroke:#ca7b28;stroke-width:4;stroke-dasharray:11 9;marker-end:url(#orangeArrow)}
+    </style>
+  </defs>
+  <rect width="1800" height="1120" fill="#f4f8fb"/>
+  <rect x="0" y="0" width="1800" height="145" fill="url(#head)"/>
+  <text x="70" y="65" class="title">Foundry Guard · AI 제조 품질 예방 관제</text>
+  <text x="70" y="105" class="sub">불량 예측 · A/B/C 스펙 관리 · Supabase 데이터 · Vercel 배포 · LLM 챗봇 연동</text>
+
+  <rect x="55" y="180" width="1110" height="605" rx="24" fill="#fff" stroke="#d8e4ed" stroke-width="2"/>
+  <text x="88" y="222" class="section">현재 운영 중인 시스템</text>
+
+  <g filter="url(#shadow)"><rect x="100" y="280" width="250" height="160" rx="18" fill="#e6f3fb" stroke="#8dbfdd" stroke-width="2"/><text x="130" y="329" class="node-title">관리자 · 작업자</text><text x="130" y="365" class="node-text">브라우저에서 현황 확인</text><text x="130" y="397" class="node-text">공정값 입력 · 조치 기록</text></g>
+  <g filter="url(#shadow)"><rect x="455" y="252" width="300" height="215" rx="18" fill="#eaf5ff" stroke="#5aa4d6" stroke-width="3"/><text x="490" y="304" class="node-title">Vercel</text><text x="490" y="341" class="node-text">공개 웹 · 배포 환경</text><text x="490" y="374" class="small">foundry-guard-kamp.vercel.app</text><text x="490" y="420" class="small">HTML · CSS · JavaScript</text></g>
+  <g filter="url(#shadow)"><rect x="455" y="535" width="300" height="190" rx="18" fill="#eaf5ff" stroke="#5aa4d6" stroke-width="3"/><text x="490" y="586" class="node-title">FastAPI</text><text x="490" y="623" class="node-text">Vercel Function · 서버 API</text><text x="490" y="662" class="small">GET /api/dashboard</text><text x="490" y="690" class="small">POST /api/predict</text></g>
+  <g filter="url(#shadow)"><rect x="855" y="280" width="260" height="160" rx="18" fill="#e8f7ef" stroke="#67b489" stroke-width="3"/><text x="888" y="332" class="node-title">Supabase</text><text x="888" y="369" class="node-text">process_events</text><text x="888" y="401" class="small">생산 이력 73,611건</text></g>
+  <g filter="url(#shadow)"><rect x="855" y="535" width="260" height="190" rx="18" fill="#e8f7ef" stroke="#67b489" stroke-width="3"/><text x="888" y="586" class="node-title">예측 모델</text><text x="888" y="623" class="node-text">Random Forest</text><text x="888" y="658" class="small">불량 확률 · 피처 중요도</text><text x="888" y="688" class="small">A/B/C 스펙 상·하한</text></g>
+  <path d="M350 360 H455" class="line"/><path d="M605 467 V535" class="line"/><path d="M755 630 H855" class="line"/><path d="M755 575 H810 V360 H855" class="line"/>
+  <text x="380" y="340" class="tiny">접속</text><text x="777" y="655" class="tiny">모델 호출</text><text x="782" y="338" class="tiny">생산 이력 읽기·저장</text>
+
+  <rect x="1210" y="180" width="535" height="605" rx="24" fill="#fffaf3" stroke="#edc892" stroke-width="2"/>
+  <text x="1245" y="222" class="section" fill="#a56822">다음 연동 · 친구의 LLM 챗봇</text>
+  <g filter="url(#shadow)"><rect x="1260" y="280" width="430" height="172" rx="18" fill="#fff1dd" stroke="#df9d47" stroke-width="3"/><text x="1295" y="334" class="node-title">LLM 챗봇</text><text x="1295" y="372" class="node-text">“현재 위험 항목은?”</text><text x="1295" y="405" class="node-text">“이 측정값의 불량 위험은?”</text></g>
+  <g filter="url(#shadow)"><rect x="1260" y="555" width="430" height="135" rx="18" fill="#fff1dd" stroke="#df9d47" stroke-width="3"/><text x="1295" y="609" class="node-title">알림 채널</text><text x="1295" y="646" class="node-text">Notion · 이메일 · 관리자 알림</text></g>
+  <path d="M1260 366 H1165 V630 H755" class="dash"/><path d="M1475 452 V555" class="dash"/>
+  <text x="1010" y="600" class="tiny">API 도구 호출</text><text x="1500" y="520" class="tiny">고위험·스펙 이탈</text>
+
+  <rect x="55" y="825" width="1690" height="240" rx="24" fill="#fff" stroke="#d8e4ed" stroke-width="2"/>
+  <text x="88" y="868" class="section">친구에게 공유할 범위</text>
+  <g><rect x="95" y="895" width="710" height="132" rx="14" fill="#e8f7ef"/><text x="125" y="933" class="node-title">공유해도 됨 · GitHub 비공개 저장소</text><text x="125" y="970" class="small">코드: app.py · storage.py · supabase_store.py · build_dashboard.py · dist/ · scripts/ · docs/</text><text x="125" y="1001" class="small">재현용: artifacts/model/ · data/source/ · data/local/ · supabase/schema.sql</text></g>
+  <g><rect x="845" y="895" width="855" height="132" rx="14" fill="#fff0ee"/><text x="875" y="933" class="node-title">절대 공유 금지 · 환경변수와 계정 권한</text><text x="875" y="970" class="small">.env · .env.local · .vercel/ · SUPABASE_SECRET_KEY · Vercel 토큰 · OpenAI API key</text><text x="875" y="1001" class="small">챗봇은 DB 키 없이 FastAPI API만 호출하면 됨</text></g>
+</svg>

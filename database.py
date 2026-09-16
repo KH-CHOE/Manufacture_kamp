@@ -12,7 +12,7 @@ import pandas as pd
 
 
 BASE = Path(__file__).parent
-DB_PATH = BASE / "data" / "foundry_v2.db"
+DB_PATH = BASE / "data" / "local" / "foundry_v2.db"
 
 
 def connect() -> sqlite3.Connection:

@@ -13,9 +13,9 @@ from sklearn.metrics import average_precision_score, f1_score, precision_score, 
 
 
 BASE = Path(__file__).parent
-CSV = BASE / "Input.csv"
+CSV = BASE / "data" / "source" / "Input.csv"
 OUT = BASE / "manufacturing_control_dashboard.html"
-MODEL_OUT = BASE / "artifacts" / "defect_model.pkl"
+MODEL_OUT = BASE / "artifacts" / "model" / "defect_model.pkl"
 THRESHOLD = 0.68
 MAX_SCATTER_POINTS = 8_000
 
@@ -259,4 +259,4 @@ def build() -> Path:
 
 
 if __name__ == "__main__":
-    print("Use train_model.py to train and seed the current dashboard.")
+    print("Use scripts/train_model.py to train and seed the current dashboard.")
