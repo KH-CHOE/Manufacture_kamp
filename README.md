@@ -18,6 +18,10 @@ Supabase 전환 절차는 [docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md)를 �
 LLM 챗봇 구현자에게는 [docs/LLM_CHATBOT_HANDOFF.md](docs/LLM_CHATBOT_HANDOFF.md)를 전달한다.
 Vercel 배포는 [docs/deployment/VERCEL_DEPLOY.md](docs/deployment/VERCEL_DEPLOY.md)를 따른다.
 
+## 협업 배포
+
+`main` 브랜치에 push하면 Vercel이 Production 대시보드를 자동 배포한다. 기능 작업은 별도 브랜치와 Pull Request로 진행하면 Vercel Preview URL에서 먼저 확인할 수 있다.
+
 ## 폴더 구성
 
 ```text
