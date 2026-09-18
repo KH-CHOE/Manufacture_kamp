@@ -3,3 +3,4 @@ uvicorn[standard]>=0.30,<1
 pandas>=2
 scikit-learn>=1.5
 numpy>=1.26
+openai>=1.40
