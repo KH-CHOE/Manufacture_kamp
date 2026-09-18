@@ -27,6 +27,11 @@ class PredictionRequest(BaseModel):
     event_at: datetime | None = None
 
 
+class ChatRequest(BaseModel):
+    message: str = Field(description="사용자 자연어 질문")
+    history: list[dict[str, Any]] | None = None
+
+
 def artifact() -> dict[str, Any]:
     if not MODEL_OUT.exists():
         raise HTTPException(503, "Model is not ready. Run: python3 scripts/train_model.py")
@@ -60,6 +65,20 @@ def predict(payload: PredictionRequest) -> dict[str, Any]:
     event_at = (payload.event_at or datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
     record_prediction(event_at, values, probability)
     return {"event_at": event_at, "defect_probability": round(probability, 4), "risk_level": "critical" if probability >= saved["threshold"] and any(specs[item]["grade"] == "A" for item in outside) else "warning" if probability >= saved["threshold"] or outside else "normal", "threshold": saved["threshold"], "out_of_band_features": outside}
+
+
+@app.post("/api/chat")
+def chat(payload: ChatRequest) -> dict[str, Any]:
+    """자연어 질의 → 서버측 도구 호출로 현황·원인·비용·예측·조치 후보를 응답.
+    OPENAI_API_KEY 미설정 시 규칙기반 폴백. 챗봇은 제어·자동 알림을 수행하지 않음(설계서 4.3)."""
+    from chatbot.service import run_chat
+    return run_chat(payload.message, payload.history)
+
+
+@app.get("/api/chat/health")
+def chat_health() -> dict[str, Any]:
+    from chatbot.service import has_api, MODEL
+    return {"llm_connected": has_api(), "model": MODEL if has_api() else "rule-based-fallback"}
 
 
 @app.get("/")
