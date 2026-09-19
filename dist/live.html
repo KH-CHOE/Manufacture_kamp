@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Foundry Guard · Live 관제</title>
+  <link rel="stylesheet" href="live.css" />
+</head>
+<body>
+  <header class="live-top">
+    <div class="brand"><span class="brand-mark">FG</span> FOUNDRY GUARD <em>· LIVE 관제</em></div>
+    <div class="top-right">
+      <span class="clock" id="clock">--:--:--</span>
+      <span class="conn" id="conn"><i class="dot"></i> 연결 중…</span>
+    </div>
+  </header>
+
+  <section class="risk-bar">
+    <div class="risk-badge" id="risk-badge">
+      <b id="risk-level">--</b><span>현재 상태</span>
+    </div>
+    <div class="gauge-wrap">
+      <div class="gauge-head">
+        <span>불량 확률</span>
+        <b id="prob-val">--</b>
+      </div>
+      <div class="gauge" id="gauge">
+        <div class="gauge-fill" id="gauge-fill"></div>
+        <div class="gauge-thr" id="gauge-thr"><span id="thr-val">임계</span></div>
+      </div>
+    </div>
+    <div class="counters">
+      <div><b id="c-index">--</b><span>이벤트 #</span></div>
+      <div><b id="c-actual">--</b><span>실측(1=불량)</span></div>
+      <div><b id="c-highrisk">--</b><span>누적 고위험</span></div>
+    </div>
+  </section>
+
+  <main class="pipeline-wrap">
+    <div class="pipeline" id="pipeline"></div>
+  </main>
+
+  <section class="reasons" id="reasons" hidden>
+    <h3>정상범위 이탈 (우선 확인 대상)</h3>
+    <div class="reason-list" id="reason-list"></div>
+    <p class="disclaimer">통계적 관계이며 인과는 아닙니다. 조치는 관리자 승인 전 후보입니다.</p>
+  </section>
+
+  <footer class="controls">
+    <button id="btn-play" class="ctl primary">▶ 재생</button>
+    <label class="speed">속도
+      <select id="speed">
+        <option value="1">1x</option>
+        <option value="2" selected>2x</option>
+        <option value="4">4x</option>
+        <option value="8">8x</option>
+      </select>
+    </label>
+    <button id="btn-defect" class="ctl warn">⟶ 실제 불량 시점으로</button>
+    <button id="btn-inject" class="ctl">⚠ 이상 강제주입</button>
+    <button id="btn-clear" class="ctl ghost">주입 해제</button>
+    <button id="btn-reset" class="ctl ghost">↺ 리셋</button>
+    <span class="tag" id="inject-tag" hidden>이상주입 ON</span>
+  </footer>
+
+  <script src="live.js"></script>
+</body>
+</html>
