@@ -250,6 +250,13 @@ async def audit_ep() -> dict:
     return {"audit": _audit}
 
 
+@router.get("/realtime/session")
+async def realtime_session() -> dict:
+    """OpenAI Realtime 임시 세션 발급. 키 없으면 enabled=False → 프론트가 Web Speech로 대체."""
+    from live import realtime
+    return realtime.create_session()
+
+
 @router.get("/meta")
 async def meta() -> dict:
     """프로파일·공정지점 레이아웃(프론트 초기화용)."""

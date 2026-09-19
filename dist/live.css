@@ -147,6 +147,10 @@ body {
   border: 1px solid var(--rule); border-radius: 6px; padding: 8px 13px; font-size: .9rem; }
 .cmd-bar input:focus { outline: none; border-color: var(--cyan); }
 .cmd-hint { font-size: .76rem; color: var(--amber); }
+.ctl.voice { border-color: var(--cyan); color: var(--cyan); }
+.ctl.voice.on { background: var(--red); border-color: var(--red); color: #fff; animation: pulse 1.2s ease-in-out infinite; }
+.voice-heard { font-size: .84rem; color: var(--ink); }
+.voice-status { font-size: .74rem; color: var(--muted); margin-left: auto; }
 .demo-ctl { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .demo-label { font-size: .7rem; color: var(--muted); letter-spacing: .04em; margin-right: 2px; }
 .ctl { background: var(--panel2); color: var(--ink); border: 1px solid var(--rule);

@@ -125,6 +125,7 @@
   function addAlert(a) {
     alerts.unshift(a); alerts.splice(20);
     renderAlerts(alerts);
+    if (window.LiveAPI && window.LiveAPI.onAlert) window.LiveAPI.onAlert(a);
   }
 
   // ── 감사 로그 ──────────────────────────────────────────────
@@ -249,5 +250,8 @@
       $("#conn").className = "conn off"; $("#conn").innerHTML = '<i class="dot"></i> 연결 끊김 · 재시도';
     };
   }
+  // 음성 모듈(voice.js)이 쓰는 공개 API: 음성 명령 → 조정창 제안, 경보 훅
+  window.LiveAPI = { command: (text, actor) => sendCommand({ text }, actor || "음성"), onAlert: null };
+
   connect();
 })();
