@@ -73,6 +73,10 @@ class Simulator:
     def set_speed(self, ticks_per_sec: float) -> None:
         self.speed = max(0.25, min(20.0, float(ticks_per_sec)))
 
+    def set_threshold(self, value: float) -> None:
+        """위험 판정 임계값 변경(승인된 명령에서만 호출). tick 판정에 즉시 반영."""
+        self.threshold = max(0.01, min(0.99, float(value)))
+
     def step(self) -> None:
         """다음 행으로. 끝에 닿으면 처음으로 순환."""
         self.index = (self.index + 1) % self.n

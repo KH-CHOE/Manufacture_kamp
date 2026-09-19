@@ -119,6 +119,18 @@ body {
 .alert-item .ai-reason { font-size: .74rem; color: var(--muted); margin-top: 4px; }
 .empty { color: var(--muted); font-size: .8rem; margin: 0; }
 
+/* 감사 로그 */
+.audit-log { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.audit-list { overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.audit-item { font-size: .76rem; display: grid; grid-template-columns: auto 1fr auto; gap: 8px;
+  align-items: baseline; padding: 6px 8px; background: var(--panel2); border-radius: 5px; }
+.audit-item .au-ts { color: var(--muted); font-variant-numeric: tabular-nums; }
+.audit-item .au-act b { font-weight: 700; } .audit-item .au-act small { color: var(--muted); }
+.audit-item .au-res { font-weight: 700; white-space: nowrap; }
+.audit-item.ok .au-res { color: var(--green); }
+.audit-item.block .au-res { color: var(--red); }
+.audit-item.cancel .au-res { color: var(--muted); }
+
 /* 원인 패널 */
 .reasons { padding: 16px 26px; border-top: 1px solid var(--rule); background: var(--panel); }
 .reasons h3 { margin: 0 0 10px; font-size: .95rem; color: var(--red); }
@@ -128,8 +140,15 @@ body {
 .disclaimer { margin: 11px 0 0; font-size: .74rem; color: var(--muted); }
 
 /* 하단 제어 */
-.controls { display: flex; align-items: center; gap: 12px; padding: 14px 26px;
-  border-top: 1px solid var(--rule); background: #131c20; flex-wrap: wrap; }
+.controls { display: flex; flex-direction: column; gap: 11px; padding: 14px 26px;
+  border-top: 1px solid var(--rule); background: #131c20; }
+.cmd-bar { display: flex; align-items: center; gap: 10px; }
+.cmd-bar input { flex: 1 1 auto; min-height: 40px; background: var(--panel2); color: var(--ink);
+  border: 1px solid var(--rule); border-radius: 6px; padding: 8px 13px; font-size: .9rem; }
+.cmd-bar input:focus { outline: none; border-color: var(--cyan); }
+.cmd-hint { font-size: .76rem; color: var(--amber); }
+.demo-ctl { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.demo-label { font-size: .7rem; color: var(--muted); letter-spacing: .04em; margin-right: 2px; }
 .ctl { background: var(--panel2); color: var(--ink); border: 1px solid var(--rule);
   padding: 9px 15px; border-radius: 5px; font-size: .86rem; font-weight: 600; transition: .15s; }
 .ctl:hover { border-color: var(--cyan); }
@@ -141,3 +160,28 @@ body {
 .speed select { background: var(--panel2); color: var(--ink); border: 1px solid var(--rule);
   padding: 7px 9px; border-radius: 5px; }
 .tag { font-size: .74rem; color: var(--red); border: 1px solid var(--red); border-radius: 99px; padding: 4px 10px; }
+
+/* 조정 창(모달) */
+.modal-overlay { position: fixed; inset: 0; background: #0a1013cc; backdrop-filter: blur(2px);
+  display: grid; place-items: center; z-index: 50; }
+.modal-overlay[hidden] { display: none; }
+.modal { width: min(520px, 92vw); background: var(--panel); border: 1px solid var(--rule);
+  border-top: 4px solid var(--amber); border-radius: 10px; padding: 22px 24px;
+  box-shadow: 0 20px 60px #000a; animation: slidein .2s ease; }
+.modal h3 { margin: 0 0 10px; font-size: 1.2rem; letter-spacing: -.03em; }
+.modal-summary { margin: 0 0 16px; font-size: .9rem; line-height: 1.6; color: var(--muted); }
+.modal-threshold { background: var(--panel2); border-radius: 8px; padding: 15px; margin-bottom: 14px; }
+.thr-row { display: flex; align-items: center; gap: 12px; font-size: .82rem; color: var(--muted); margin-bottom: 12px; }
+.thr-row b { color: var(--ink); font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.thr-row .arrow { color: var(--amber); }
+.thr-row b#thr-proposed { color: var(--amber); }
+.modal-threshold input[type=range] { width: 100%; accent-color: var(--cyan); }
+.thr-val { margin-top: 10px; font-size: .86rem; color: var(--muted); }
+.thr-val b { color: var(--cyan); font-size: 1.4rem; font-variant-numeric: tabular-nums; margin-left: 6px; }
+.override { display: flex; align-items: center; gap: 8px; font-size: .84rem; color: var(--red);
+  background: #2c1e1d; border: 1px solid var(--red); border-radius: 6px; padding: 10px 12px; margin-bottom: 14px; }
+.override[hidden] { display: none; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.modal-actions .ctl { min-width: 84px; }
+.modal-note { margin: 14px 0 0; font-size: .74rem; color: var(--muted); }
+.modal-note b { color: var(--amber); }

@@ -18,7 +18,10 @@ from typing import Any
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
+from datetime import datetime
+
 from live import briefing as brief
+from live import commands as cmd
 from live.simulator import Simulator
 
 router = APIRouter(prefix="/live", tags=["live"])
@@ -30,6 +33,7 @@ _driver_task: asyncio.Task | None = None
 # 최근 이벤트 창 / 이상 이력 / 최신 브리핑
 _window: deque[dict] = deque(maxlen=80)
 _alerts: list[dict] = []
+_audit: list[dict] = []          # 명령 감사 로그(시간·주체·명령·결과)
 _latest_briefing: dict | None = None
 _last_risk: str = "정상"
 _last_brief_t: float = 0.0
@@ -166,10 +170,84 @@ async def control(cmd: dict) -> dict:
         sim.clear_injection()
     elif action == "reset":
         sim.stop(); sim.seek(0); sim.clear_injection()
-        _window.clear(); _alerts.clear(); _latest_briefing = None; _last_risk = "정상"
+        _window.clear(); _alerts.clear(); _audit.clear(); _latest_briefing = None; _last_risk = "정상"
     else:
         return {"ok": False, "error": f"알 수 없는 명령: {action}"}
     return {"ok": True, "tick": sim.tick()}
+
+
+def _log_audit(actor: str, action: str, detail: str, result: str) -> dict:
+    entry = {"ts": datetime.now().strftime("%H:%M:%S"), "actor": actor,
+             "action": action, "detail": detail, "result": result}
+    _audit.insert(0, entry)
+    del _audit[50:]
+    _broadcast("audit", entry)
+    return entry
+
+
+@router.post("/command")
+async def command(body: dict) -> dict:
+    """명령(텍스트/직접) → 제안만 반환. 실행하지 않음(사람 승인 대기).
+
+    body: {text: "..."} 자연어  또는  {kind: "set_threshold"|"stop_line"|"start_line"}."""
+    sim = get_sim()
+    tick = sim.tick()
+    kind = body.get("kind")
+    if kind == "set_threshold":
+        return {"ok": True, "proposal": cmd.threshold_proposal(sim, body.get("value"))}
+    if kind == "stop_line":
+        return {"ok": True, "proposal": cmd.stop_proposal(sim, tick)}
+    if kind == "start_line":
+        return {"ok": True, "proposal": cmd.start_proposal(sim, tick)}
+    text = (body.get("text") or "").strip()
+    proposal = cmd.parse(text, sim, tick) if text else None
+    if proposal is None:
+        return {"ok": False, "error": "실행 가능한 명령을 찾지 못했습니다. (임계값 조정·라인 정지·재시작)"}
+    return {"ok": True, "proposal": proposal}
+
+
+@router.post("/approve")
+async def approve(body: dict) -> dict:
+    """조정 창에서 사람이 [적용]/[승인] → 그때 비로소 실제 반영 + 감사기록.
+
+    body: {kind, value?, override?, actor?}."""
+    sim = get_sim()
+    kind = body.get("kind")
+    actor = body.get("actor", "수동")
+    if kind == "set_threshold":
+        value = float(body.get("value", sim.threshold))
+        prev = sim.threshold
+        sim.set_threshold(value)
+        _log_audit(actor, "임계값 조정", f"{prev} → {sim.threshold}", "적용됨")
+    elif kind == "stop_line":
+        sim.stop()
+        _log_audit(actor, "라인 정지", f"이벤트 #{sim.index}", "정지됨")
+    elif kind == "start_line":
+        tick = sim.tick()
+        danger = tick["risk_level"] == "위험"
+        override = bool(body.get("override"))
+        if danger and not override:
+            reason = ", ".join(r["label"] for r in tick.get("top_reasons", [])) or "위험 상태"
+            _log_audit(actor, "라인 재시작", f"이벤트 #{sim.index}", f"차단(인터록): {reason}")
+            return {"ok": False, "interlock": True,
+                    "error": f"인터록: 이탈 미해소({reason}). 오버라이드 필요.", "tick": tick}
+        sim.start()
+        _log_audit(actor, "라인 재시작", f"이벤트 #{sim.index}" + (" (오버라이드)" if danger else ""), "재시작됨")
+    else:
+        return {"ok": False, "error": f"알 수 없는 명령: {kind}"}
+    return {"ok": True, "tick": sim.tick()}
+
+
+@router.post("/reject")
+async def reject(body: dict) -> dict:
+    """조정 창에서 [취소] → 기록만 남김(반영 안 함)."""
+    _log_audit(body.get("actor", "수동"), body.get("title", "명령"), body.get("detail", ""), "취소됨")
+    return {"ok": True}
+
+
+@router.get("/audit")
+async def audit_ep() -> dict:
+    return {"audit": _audit}
 
 
 @router.get("/meta")

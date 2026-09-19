@@ -127,6 +127,83 @@
     renderAlerts(alerts);
   }
 
+  // ── 감사 로그 ──────────────────────────────────────────────
+  const audits = [];
+  function auditHTML(a) {
+    const cls = /차단|취소/.test(a.result) ? (/차단/.test(a.result) ? "block" : "cancel") : "ok";
+    return `<div class="audit-item ${cls}"><span class="au-ts">${esc(a.ts)}</span>
+      <span class="au-act"><b>${esc(a.action)}</b> <small>${esc(a.detail || "")} · ${esc(a.actor)}</small></span>
+      <span class="au-res">${esc(a.result)}</span></div>`;
+  }
+  function renderAudit(list) {
+    audits.length = 0; audits.push(...list);
+    const box = $("#audit-list");
+    box.innerHTML = list.length ? list.map(auditHTML).join("") : '<p class="empty">기록 없음</p>';
+    $("#audit-count").textContent = list.length;
+  }
+  function addAudit(a) { audits.unshift(a); audits.splice(50); renderAudit(audits); }
+
+  // ── 조정 창(모달): AI 제안 → 사람 승인 ────────────────────
+  let current = null;   // {proposal, actor}
+  function openModal(proposal, actor) {
+    current = { proposal, actor };
+    $("#modal-title").textContent = proposal.title;
+    $("#modal-summary").textContent = proposal.summary;
+    const isThr = proposal.kind === "set_threshold";
+    $("#modal-threshold").hidden = !isThr;
+    const ok = $("#modal-ok");
+    if (isThr) {
+      $("#thr-current").textContent = proposal.current;
+      $("#thr-proposed").textContent = proposal.proposed;
+      const sl = $("#thr-slider");
+      sl.min = proposal.min; sl.max = proposal.max; sl.step = proposal.step; sl.value = proposal.proposed;
+      $("#thr-value").textContent = Number(proposal.proposed).toFixed(2);
+      sl.oninput = () => { $("#thr-value").textContent = Number(sl.value).toFixed(2); };
+      ok.textContent = "적용";
+    } else {
+      ok.textContent = proposal.kind === "stop_line" ? "정지 승인" : "재시작 승인";
+    }
+    const needOverride = !!proposal.requires_override;
+    $("#modal-override").hidden = !needOverride;
+    $("#override-chk").checked = false;
+    ok.disabled = needOverride;
+    $("#modal").hidden = false;
+  }
+  function closeModal() { $("#modal").hidden = true; current = null; }
+
+  $("#override-chk").onchange = (e) => { $("#modal-ok").disabled = !e.target.checked; };
+  $("#modal-cancel").onclick = () => {
+    if (current) fetch("/live/reject", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind: current.proposal.kind, title: current.proposal.title, actor: current.actor }) });
+    closeModal();
+  };
+  $("#modal-ok").onclick = async () => {
+    if (!current) return;
+    const p = current.proposal;
+    const body = { kind: p.kind, actor: current.actor };
+    if (p.kind === "set_threshold") body.value = Number($("#thr-slider").value);
+    if (p.requires_override) body.override = $("#override-chk").checked;
+    const res = await fetch("/live/approve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const data = await res.json();
+    if (data.ok) { if (data.tick) render(data.tick); closeModal(); }
+    else { $("#modal-summary").textContent = data.error || "적용 실패"; }
+  };
+
+  // ── 명령 입력 → 제안 → 모달 ───────────────────────────────
+  async function sendCommand(payload, actor) {
+    $("#cmd-hint").textContent = "";
+    const res = await fetch("/live/command", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const data = await res.json();
+    if (data.ok && data.proposal) openModal(data.proposal, actor);
+    else $("#cmd-hint").textContent = data.error || "명령을 이해하지 못했습니다.";
+  }
+  $("#cmd-send").onclick = () => {
+    const v = $("#cmd-input").value.trim();
+    if (v) { sendCommand({ text: v }, "텍스트"); $("#cmd-input").value = ""; }
+  };
+  $("#cmd-input").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#cmd-send").click(); });
+  $("#btn-threshold").onclick = () => sendCommand({ kind: "set_threshold" }, "수동");
+
   // ── 제어 ───────────────────────────────────────────────────
   async function control(action, extra = {}) {
     try {
@@ -150,11 +227,16 @@
   // ── SSE 연결 ───────────────────────────────────────────────
   function connect() {
     // 스냅샷 모드(?snap): SSE 미연결, 상태 1회만 렌더 (헤드리스 캡처용)
-    if (new URLSearchParams(location.search).has("snap")) {
+    const params = new URLSearchParams(location.search);
+    if (params.has("snap")) {
       $("#conn").className = "conn on"; $("#conn").innerHTML = '<i class="dot"></i> 스냅샷';
       fetch("/live/tick").then((r) => r.json()).then(render).catch(() => {});
       fetch("/live/briefing").then((r) => r.json()).then(renderBriefing).catch(() => {});
       fetch("/live/alerts").then((r) => r.json()).then((d) => renderAlerts(d.alerts || [])).catch(() => {});
+      fetch("/live/audit").then((r) => r.json()).then((d) => renderAudit(d.audit || [])).catch(() => {});
+      const m = params.get("modal");
+      if (m === "threshold") setTimeout(() => sendCommand({ kind: "set_threshold" }, "음성"), 250);
+      else if (m === "restart") setTimeout(() => sendCommand({ kind: "start_line" }, "음성"), 250);
       return;
     }
     const es = new EventSource("/live/stream");
@@ -162,6 +244,7 @@
     es.addEventListener("tick", (ev) => { try { render(JSON.parse(ev.data)); } catch {} });
     es.addEventListener("briefing", (ev) => { try { renderBriefing(JSON.parse(ev.data)); } catch {} });
     es.addEventListener("alert", (ev) => { try { addAlert(JSON.parse(ev.data)); } catch {} });
+    es.addEventListener("audit", (ev) => { try { addAudit(JSON.parse(ev.data)); } catch {} });
     es.onerror = () => {
       $("#conn").className = "conn off"; $("#conn").innerHTML = '<i class="dot"></i> 연결 끊김 · 재시도';
     };
