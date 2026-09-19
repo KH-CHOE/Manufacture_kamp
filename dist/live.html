@@ -36,8 +36,21 @@
     </div>
   </section>
 
-  <main class="pipeline-wrap">
-    <div class="pipeline" id="pipeline"></div>
+  <main class="live-main">
+    <div class="pipeline-wrap">
+      <div class="pipeline" id="pipeline"></div>
+    </div>
+    <aside class="sidebar">
+      <section class="panel briefing">
+        <h3>주기 현황 보고 <span class="panel-sub" id="brief-idx"></span></h3>
+        <p class="briefing-text" id="briefing">데이터 수집 중…</p>
+        <div class="brief-stats" id="brief-stats"></div>
+      </section>
+      <section class="panel alert-log">
+        <h3>이상 이력 <span class="panel-sub" id="alert-count">0</span></h3>
+        <div class="alert-list" id="alert-list"><p class="empty">경보 없음</p></div>
+      </section>
+    </aside>
   </main>
 
   <section class="reasons" id="reasons" hidden>

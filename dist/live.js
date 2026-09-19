@@ -93,6 +93,40 @@
     $("#inject-tag").hidden = !t.injected;
   }
 
+  // ── 현황 보고 · 이상 이력 ──────────────────────────────────
+  function renderBriefing(b) {
+    if (!b) return;
+    $("#briefing").textContent = b.text || "데이터 수집 중…";
+    $("#brief-idx").textContent = b.index != null ? `#${b.index}` : "";
+    const s = $("#brief-stats");
+    if (b.processed) {
+      s.innerHTML = `<span>처리 <b>${b.processed}</b></span>`
+        + `<span>고위험 <b>${b.high_risk}</b></span>`
+        + (b.defects != null ? `<span>실측불량 <b>${b.defects}</b></span>` : "")
+        + `<span>추세 <b>${esc(b.trend)}</b></span>`;
+    } else { s.innerHTML = ""; }
+  }
+
+  const alerts = [];
+  function alertHTML(a) {
+    const r = (a.reasons && a.reasons[0]) ? a.reasons[0] : null;
+    const reason = r ? `${esc(r.label)} ${fmt(r.value)} (정상 ${fmt(r.normal[0])}~${fmt(r.normal[1])})` : "원인 분석 중";
+    return `<div class="alert-item"><div class="ai-top">
+        <span class="ai-time">${esc(a.time || "#" + a.index)}</span>
+        <span class="ai-prob">위험 ${(a.probability ?? 0).toFixed(3)}</span></div>
+      <div class="ai-reason">${reason}</div></div>`;
+  }
+  function renderAlerts(list) {
+    alerts.length = 0; alerts.push(...list);
+    const box = $("#alert-list");
+    box.innerHTML = list.length ? list.map(alertHTML).join("") : '<p class="empty">경보 없음</p>';
+    $("#alert-count").textContent = list.length;
+  }
+  function addAlert(a) {
+    alerts.unshift(a); alerts.splice(20);
+    renderAlerts(alerts);
+  }
+
   // ── 제어 ───────────────────────────────────────────────────
   async function control(action, extra = {}) {
     try {
@@ -115,15 +149,19 @@
 
   // ── SSE 연결 ───────────────────────────────────────────────
   function connect() {
-    // 스냅샷 모드(?snap): SSE 미연결, 틱 1회만 렌더 (헤드리스 캡처용)
+    // 스냅샷 모드(?snap): SSE 미연결, 상태 1회만 렌더 (헤드리스 캡처용)
     if (new URLSearchParams(location.search).has("snap")) {
       $("#conn").className = "conn on"; $("#conn").innerHTML = '<i class="dot"></i> 스냅샷';
       fetch("/live/tick").then((r) => r.json()).then(render).catch(() => {});
+      fetch("/live/briefing").then((r) => r.json()).then(renderBriefing).catch(() => {});
+      fetch("/live/alerts").then((r) => r.json()).then((d) => renderAlerts(d.alerts || [])).catch(() => {});
       return;
     }
     const es = new EventSource("/live/stream");
     es.onopen = () => { $("#conn").className = "conn on"; $("#conn").innerHTML = '<i class="dot"></i> 실시간 연결됨'; };
-    es.onmessage = (ev) => { try { render(JSON.parse(ev.data)); } catch {} };
+    es.addEventListener("tick", (ev) => { try { render(JSON.parse(ev.data)); } catch {} });
+    es.addEventListener("briefing", (ev) => { try { renderBriefing(JSON.parse(ev.data)); } catch {} });
+    es.addEventListener("alert", (ev) => { try { addAlert(JSON.parse(ev.data)); } catch {} });
     es.onerror = () => {
       $("#conn").className = "conn off"; $("#conn").innerHTML = '<i class="dot"></i> 연결 끊김 · 재시도';
     };
