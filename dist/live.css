@@ -19,6 +19,11 @@ body {
 }
 .brand { display: flex; align-items: center; gap: 11px; font-weight: 760; letter-spacing: -.02em; }
 .brand em { color: var(--muted); font-style: normal; font-weight: 500; }
+.demo-badge { margin-left: 12px; font-size: .68rem; font-weight: 700; color: var(--amber);
+  border: 1px solid var(--amber); border-radius: 99px; padding: 3px 10px; letter-spacing: .02em; }
+.honesty-strip { padding: 7px 26px; font-size: .74rem; line-height: 1.4; color: var(--muted);
+  background: #10171a; border-bottom: 1px solid var(--rule); }
+.honesty-strip b { color: #b9c7ca; font-weight: 650; }
 .brand-mark { background: var(--amber); color: var(--graphite); width: 32px; height: 32px;
   display: grid; place-items: center; font-size: .72rem; font-weight: 800; }
 .top-right { display: flex; align-items: center; gap: 18px; }
@@ -162,6 +167,7 @@ body {
 .ctl.primary.playing { background: var(--amber); border-color: var(--amber); color: #2a1e08; }
 .ctl.warn { border-color: var(--amber); color: var(--amber); }
 .ctl.ghost { background: transparent; color: var(--muted); }
+.ctl:disabled { opacity: .4; cursor: default; filter: grayscale(0.4); }
 .speed { font-size: .8rem; color: var(--muted); display: flex; align-items: center; gap: 7px; }
 .speed select { background: var(--panel2); color: var(--ink); border: 1px solid var(--rule);
   padding: 7px 9px; border-radius: 5px; }
