@@ -60,7 +60,7 @@ class Simulator:
         # 재생 상태
         self.index = 0
         self.running = False
-        self.speed = 2.0           # 초당 틱 수 (2 = 0.5초당 1건)
+        self.speed = 1.0           # 초당 틱 수 (1 = 1초당 1건)
         self._injection: dict[str, float] | None = None  # {feature: forced_value}
 
     # ── 재생 제어 ────────────────────────────────────────────

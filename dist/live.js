@@ -190,20 +190,34 @@
     else { $("#modal-summary").textContent = data.error || "적용 실패"; }
   };
 
-  // ── 명령 입력 → 제안 → 모달 ───────────────────────────────
-  async function sendCommand(payload, actor) {
+  // ── 명령(제안·모달) / 질문(답변) 통합 처리 ────────────────
+  const post = (url, body) => fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.json());
+
+  // 특정 종류의 제안창 직접 열기(수동 버튼용)
+  async function proposeKind(kind, actor) {
     $("#cmd-hint").textContent = "";
-    const res = await fetch("/live/command", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    const data = await res.json();
+    const data = await post("/live/command", { kind });
     if (data.ok && data.proposal) openModal(data.proposal, actor);
     else $("#cmd-hint").textContent = data.error || "명령을 이해하지 못했습니다.";
   }
+
+  // 자연어: 먼저 명령으로, 아니면 질문 답변으로. {type:'command'|'answer'|'none', text}
+  async function handleText(text, actor) {
+    $("#cmd-hint").textContent = "";
+    const c = await post("/live/command", { text });
+    if (c.ok && c.proposal) { openModal(c.proposal, actor); return { type: "command" }; }
+    const a = await post("/live/ask", { text });
+    if (a.answer) { $("#cmd-hint").textContent = "💬 " + a.answer; return { type: "answer", text: a.answer }; }
+    $("#cmd-hint").textContent = "명령·질문을 이해하지 못했습니다.";
+    return { type: "none" };
+  }
+
   $("#cmd-send").onclick = () => {
     const v = $("#cmd-input").value.trim();
-    if (v) { sendCommand({ text: v }, "텍스트"); $("#cmd-input").value = ""; }
+    if (v) { handleText(v, "텍스트"); $("#cmd-input").value = ""; }
   };
   $("#cmd-input").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#cmd-send").click(); });
-  $("#btn-threshold").onclick = () => sendCommand({ kind: "set_threshold" }, "수동");
+  $("#btn-threshold").onclick = () => proposeKind("set_threshold", "수동");
 
   // ── 제어 ───────────────────────────────────────────────────
   async function control(action, extra = {}) {
@@ -236,8 +250,8 @@
       fetch("/live/alerts").then((r) => r.json()).then((d) => renderAlerts(d.alerts || [])).catch(() => {});
       fetch("/live/audit").then((r) => r.json()).then((d) => renderAudit(d.audit || [])).catch(() => {});
       const m = params.get("modal");
-      if (m === "threshold") setTimeout(() => sendCommand({ kind: "set_threshold" }, "음성"), 250);
-      else if (m === "restart") setTimeout(() => sendCommand({ kind: "start_line" }, "음성"), 250);
+      if (m === "threshold") setTimeout(() => proposeKind("set_threshold", "음성"), 250);
+      else if (m === "restart") setTimeout(() => proposeKind("start_line", "음성"), 250);
       return;
     }
     const es = new EventSource("/live/stream");
@@ -251,7 +265,7 @@
     };
   }
   // 음성 모듈(voice.js)이 쓰는 공개 API: 음성 명령 → 조정창 제안, 경보 훅
-  window.LiveAPI = { command: (text, actor) => sendCommand({ text }, actor || "음성"), onAlert: null };
+  window.LiveAPI = { handle: (text, actor) => handleText(text, actor || "음성"), onAlert: null };
 
   connect();
 })();

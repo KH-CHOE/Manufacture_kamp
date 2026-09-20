@@ -65,7 +65,7 @@
 
   <footer class="controls">
     <div class="cmd-bar">
-      <input id="cmd-input" placeholder="명령 입력 (예: 임계값 0.6으로 낮춰 · 라인 정지 · 재시작)" />
+      <input id="cmd-input" placeholder="명령·질문 (예: 임계값 0.6으로 낮춰 · 라인 정지 · 지금 상태 어때? · 왜 위험해?)" />
       <button id="cmd-send" class="ctl primary">명령 →</button>
       <button id="btn-threshold" class="ctl">🎚 임계값 조정</button>
       <span class="cmd-hint" id="cmd-hint"></span>
@@ -75,8 +75,10 @@
       <button id="btn-play" class="ctl">▶ 재생</button>
       <label class="speed">속도
         <select id="speed">
-          <option value="1">1x</option>
-          <option value="2" selected>2x</option>
+          <option value="0.25">0.25x</option>
+          <option value="0.5">0.5x</option>
+          <option value="1" selected>1x</option>
+          <option value="2">2x</option>
           <option value="4">4x</option>
           <option value="8">8x</option>
         </select>

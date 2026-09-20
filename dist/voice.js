@@ -20,12 +20,14 @@
   }
 
   // ── 엔진 공통: 인식된 말 → 명령 제안 ───────────────────────
-  function onTranscript(text, isFinal) {
+  async function onTranscript(text, isFinal) {
     if (!text) return;
     $("#voice-heard").textContent = (isFinal ? "🗣 " : "… ") + text;
-    if (!isFinal) return;
-    if (window.LiveAPI) window.LiveAPI.command(text, "음성");
-    if (engine !== "realtime") speak("명령을 확인했습니다. 조정 창에서 승인해 주세요.");
+    if (!isFinal || !window.LiveAPI) return;
+    const r = await window.LiveAPI.handle(text, "음성");
+    if (r.type === "answer") speak(r.text);                                   // 질문 → 말로 답변
+    else if (r.type === "command" && engine !== "realtime") speak("명령을 확인했습니다. 조정 창에서 승인해 주세요.");
+    else if (r.type === "none") speak("명령이나 질문을 이해하지 못했습니다. 다시 말씀해 주세요.");
     setTimeout(() => { $("#voice-heard").textContent = ""; }, 4000);
   }
 

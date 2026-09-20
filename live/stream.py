@@ -245,6 +245,14 @@ async def reject(body: dict) -> dict:
     return {"ok": True}
 
 
+@router.post("/ask")
+async def ask(body: dict) -> dict:
+    """질문(명령 아님) → 현재 상태 근거 답변. 무키·규칙기반."""
+    from live import qa
+    text = (body.get("text") or "").strip()
+    return {"answer": qa.answer(text, get_sim(), _latest_briefing) if text else None}
+
+
 @router.get("/audit")
 async def audit_ep() -> dict:
     return {"audit": _audit}
