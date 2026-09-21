@@ -86,4 +86,15 @@ def index() -> FileResponse:
     return FileResponse(DIST / "index.html")
 
 
+@app.get("/live")
+def live_page() -> FileResponse:
+    """라이브 관제 데모 페이지."""
+    return FileResponse(DIST / "live.html")
+
+
+# 라이브 스트림·제어 라우터 (SSE + REST). 시뮬레이터는 첫 요청 시 지연 로딩.
+from live.stream import router as live_router  # noqa: E402
+
+app.include_router(live_router)
+
 app.mount("/", StaticFiles(directory=DIST), name="static")
