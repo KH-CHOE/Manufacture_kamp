@@ -1,0 +1,1259 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>다음 15분 전력 예측 | 최종 모델링 보고서</title><style>
+:root{--ink:#173047;--blue:#2462a9;--aqua:#008a8c;--gold:#b47727;--paper:#f5f8fa;--line:#d8e3eb;--muted:#5a6e7b;--white:#fff}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.78 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;font-variant-numeric:tabular-nums}a{color:var(--blue)}a:focus-visible{outline:3px solid var(--gold);outline-offset:3px}h1,h2,h3{line-height:1.36;letter-spacing:-.035em}h1{font-size:42px;margin:0 0 18px}h2{font-size:28px;margin:0 0 24px}h3{font-size:18px;margin:29px 0 11px}p{max-width:84ch;margin:0 0 16px}ul{padding-left:22px}li{margin:5px 0}.topbar{background:var(--ink);color:white;padding:20px max(24px,calc((100vw - 1280px)/2));font-size:14px;font-weight:700}.frame{max-width:1320px;margin:auto;display:grid;grid-template-columns:180px minmax(0,1fr);gap:40px;padding:40px 24px 90px}aside{align-self:start;position:sticky;top:25px}aside a{display:block;padding:8px 11px;border-left:2px solid var(--line);text-decoration:none;font-size:12px;color:var(--muted)}aside a:hover{color:var(--blue);background:#e8f0f7;border-color:var(--blue)}main{min-width:0}.cover{background:#e6eff6;padding:48px 42px;margin-bottom:26px;position:relative;border-top:5px solid var(--aqua)}.cover p{font-size:18px;color:#415a6c}.cover small{display:block;font-size:12px;letter-spacing:.05em;margin-bottom:20px}.docket{display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin-top:30px}.docket>div{border-top:1px solid #a6c5d3;padding-top:12px}.docket b{font-size:23px;color:var(--blue);display:block}.docket span{font-size:12px;color:var(--muted)}section{background:white;padding:35px 40px;margin-bottom:24px;border:1px solid var(--line)}.section-number{font-size:12px;color:var(--aqua);font-weight:700;display:block;margin-bottom:6px}.lede{font-size:17px;color:#456073}.path{display:grid;grid-template-columns:repeat(5,1fr);border:1px solid var(--line);margin:25px 0}.path div{padding:18px 12px;border-right:1px solid var(--line)}.path div:last-child{border:0}.path b{display:block;color:var(--aqua);font-size:12px}.path strong{display:block;font-size:14px}.path span{display:block;font-size:11px;color:var(--muted)}.table-scroll{overflow:auto;border:1px solid var(--line);margin:17px 0}.table-scroll.tall{max-height:590px}table{width:100%;border-collapse:collapse;white-space:nowrap;font-size:12px}th,td{padding:10px 13px;border-bottom:1px solid #e8eef2;text-align:left}thead th{background:#eaf1f6;position:sticky;top:0;color:#35526b}tr:last-child td{border-bottom:0}tbody tr:hover{background:#f4f8fb}.note{padding:16px 20px;background:#edf4fa;border-left:4px solid var(--blue);margin:21px 0}.note strong{display:block;margin-bottom:4px}.note p:last-child{margin:0}.note.caution{background:#fff8e9;border-color:var(--gold)}.duo{display:grid;grid-template-columns:1fr 1fr;gap:15px}.summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:22px 0}.summary-grid div{border-top:3px solid var(--blue);background:#f4f8fb;padding:15px}.summary-grid small{display:block;color:var(--muted)}.summary-grid b{display:block;font-size:23px}.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--muted)}.legend i{display:inline-block;width:18px;height:3px;background:var(--swatch);vertical-align:middle;margin-right:6px}svg{display:block;width:100%;max-width:100%;margin:18px 0}.bar-chart{display:grid;gap:9px;margin:18px 0}.bar-item{display:grid;grid-template-columns:90px 1fr 65px;gap:12px;align-items:center;font-size:12px}.track{height:20px;background:#e8f0f5}.track div{height:100%}.code{background:#e8f0f6;padding:2px 5px;font:12px/1.6 ui-monospace,Menlo,monospace;overflow-wrap:anywhere}pre{background:var(--ink);color:white;padding:19px;overflow:auto}pre .code{background:none;color:inherit}.definition{font-size:13px;color:var(--muted)}footer{font-size:12px;color:var(--muted);padding:10px 0 30px}@media(max-width:980px){.frame{display:block}aside{position:static;display:flex;overflow:auto;margin-bottom:20px}aside a{white-space:nowrap}.path{grid-template-columns:repeat(3,1fr)}}@media(max-width:620px){.frame{padding:20px 12px}.cover,section{padding:24px 17px}h1{font-size:30px}h2{font-size:23px}.docket,.duo,.summary-grid{grid-template-columns:1fr}.path{grid-template-columns:1fr}.path div{border-right:0;border-bottom:1px solid var(--line)}}@media print{body{background:white}.frame{display:block;padding:0}aside{display:none}.cover,section{break-inside:avoid}.table-scroll{overflow:visible}.table-scroll.tall{max-height:none}a{text-decoration:none;color:var(--ink)}}
+</style></head><body>
+<div class="topbar">KAMP 자원 최적화 AI 데이터셋　/　모델 개발 및 평가 보고서</div><div class="frame"><aside><a href="#goal">문제 정의</a><a href="#data">데이터·전처리</a><a href="#features">입력 변수</a><a href="#validation">검증 설계</a><a href="#development">모델 탐색</a><a href="#final">최종 학습</a><a href="#results">시험 결과</a><a href="#reproduction">재현·한계</a><a href="#appendix">부록</a></aside><main>
+<div class="cover"><small>2021년 생산·기상·전력 데이터 / 지도학습 회귀</small><h1>다음 15분 전력 예측<br>모델 개발 및 평가</h1><p>원자료의 오류를 확인하고 15분 단위 학습 데이터를 구성한 뒤, 과거 전력과 시간 정보를 검증해 ExtraTrees 회귀 모델을 선정했다. 문서의 모든 평가 수치는 저장된 실험 결과에서 가져왔다.</p><div class="docket"><div><b>60.16</b><span>최종 시험 MSE</span></div><div><b>4.90</b><span>최종 시험 MAE</span></div><div><b>0.9842</b><span>최종 시험 R²</span></div></div></div>
+<section id="goal"><span class="section-number">01 · 문제와 예측 대상</span><h2>공장 전력을 15분 앞서 예측한다</h2><p class="lede">각 시점 t에 확정된 현재전력과 과거 관측, 생산·기상 및 달력 정보를 입력하고, 다음 시각 T=t+15분의 전력 <span class="code">전력</span>을 예측하는 회귀 문제로 정의했다.</p><p>원본 한 시간 행에는 15·30·45·60분 전력 네 값이 들어 있다. 예를 들어 원본 0시 행의 15분 값 62가 00:15의 현재전력이라면, 30분 값 61은 00:30의 정답이다. 같은 시간 행의 설명 변수는 15분 행 네 개에 반복된다. 따라서 전력 시차·시간 위치가 한 시간 내부의 차이를 설명하도록 구성했다.</p><p>예측 전력은 이후 피크 경보 또는 가동 시점 조정에 사용할 수 있다. 이 보고서에서 직접 학습한 대상은 <b>다음 15분 전력 한 값</b>이며 전기요금 자체나 생산 일정 최적화 결과를 예측한 것은 아니다. 비용 계산에 필요한 전기요금·인건비·공장인원은 입력에서 제외했다.</p><div class="path"><div><b>01</b><strong>원본 검사</strong><span>시간 오류·결측 확인</span></div><div><b>02</b><strong>15분 재구성</strong><span>현재/다음 전력 연결</span></div><div><b>03</b><strong>과거 변수</strong><span>연속 구간 내 lag·rolling</span></div><div><b>04</b><strong>시간 검증</strong><span>70:30·5-fold</span></div><div><b>05</b><strong>최종 학습</strong><span>35변수 ExtraTrees</span></div></div></section>
+<section id="data"><span class="section-number">02 · 데이터 품질과 전처리</span><h2>원자료에서 학습 가능 행까지</h2><p>원본은 2021년 1월 1일부터 9월 14일까지의 시간별 CSV 6,168행, 18개 열이다. 실제 모델은 원본에서 생성된 15분 관측을 사용한다. 오류 행 제거는 정답을 한 칸 옮긴 후 수행했고, 삭제일 양쪽을 시계열로 이어 붙이지 않았다.</p><div class="table-scroll"><table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>시점</th>
+      <th>행 수</th>
+      <th>변경</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>원본 시간별 CSV</td>
+      <td>6,168</td>
+      <td>2021-01-01~2021-09-14, 시간별 행에 15·30·45·60분 전력</td>
+    </tr>
+    <tr>
+      <td>시간 오류 제거</td>
+      <td>6,120</td>
+      <td>7월 13일·15일 각각 24시간 행, 합계 48행 제거</td>
+    </tr>
+    <tr>
+      <td>15분 단위 재구성</td>
+      <td>24,480</td>
+      <td>시간별 4개 전력을 펼치고 다음 15분 정답을 한 칸 이동</td>
+    </tr>
+    <tr>
+      <td>공통 모델링 가능</td>
+      <td>24,190</td>
+      <td>연속 구간 내 96칸 이력 필요, 삭제일 경계 및 마지막 정답 제거</td>
+    </tr>
+    <tr>
+      <td>최종 평가</td>
+      <td>24,189</td>
+      <td>학습 16,895 + 시험 7,294; 경계 1행 제외</td>
+    </tr>
+  </tbody>
+</table></div><h3>시간 오류 행</h3><p>7월 13일과 15일의 <span class="code">시간</span> 값은 0~23이 아니라 각각 70~188, 74~184 범위다. 날짜와 시간의 정상적인 조합으로 확정할 수 없어 각 24행, 합계 48행을 제외했다. 15분으로 펼친 뒤에는 두 날짜에 해당하는 192행이 제거된 셈이다. 삭제된 날짜를 사이에 두고 lag나 rolling 창이 이어지지 않도록 연속 구간을 다시 나눴다.</p><h3>원본 결측치의 처리</h3><div class="table-scroll"><table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>원본 열</th>
+      <th>결측 시간별 행</th>
+      <th>처리</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>풍속</td>
+      <td>3</td>
+      <td>2021-06-01 01·02시 0.65; 2021-07-04 20시 1.85</td>
+    </tr>
+    <tr>
+      <td>강수량</td>
+      <td>1</td>
+      <td>2021-01-24 00시 6.3 (세 후보의 RF MSE 비교 후 채택)</td>
+    </tr>
+    <tr>
+      <td>공장인원</td>
+      <td>17</td>
+      <td>대체하지 않고 모델 입력에서 제외</td>
+    </tr>
+  </tbody>
+</table></div><p>공장인원 결측 17개는 원본 시간별 기준이며 15분으로 펼친 파일에서는 같은 값이 네 번 반복돼 68개가 된다. 공장인원과 인건비는 모델에 넣지 않았다. 풍속·강수량의 수동 대치 값은 이전 전처리 실험의 최종 결정이다. 추가 시간·전력 변동성 열은 raw로 다시 계산한 결과와 허용 오차 0.00001 안에서 대조했다.</p><h3>목표값과 이력 생성</h3><p>각 관측 전력을 현재 입력으로 두고 다음 15분 관측 전력을 정답으로 한 칸 이동했다. 따라서 가장 마지막 관측의 정답 1개는 없다. 과거전력 1·2·4·96칸, 변화량 및 1시간 이동 통계는 예측 시점까지의 전력만 사용한다. 전날 이력 96칸은 연속 관측 24시간이 있어야 생성되므로 각 연속 구간 초기에 결측이 발생한다. 공통 비교 조건을 위해 필수 파생 변수가 없는 행과 삭제일 경계에 남아 있던 정답 2행을 제거했다. 이 조건들의 중복을 반영하면 모델링 가능 표본은 24,190행이다.</p><h3>달력 변수와 제외 변수</h3><p>2021년 달력으로 주중 여부와 주중 공휴일 여부를 추가했다. 해당 기간의 평일 공휴일 7일(1/1, 2/11, 2/12, 3/1, 5/5, 5/19, 8/16)을 표시했다. 원본 <span class="code">날짜</span>와 시간별 <span class="code">평균</span> 열은 제외하고, 월·일·시간과 15분 위치는 별도 숫자 변수로 사용했다. 목표 시각 기준의 순환 시간 값도 후보로 만들어 최종 모델에 포함했다.</p><div class="note"><strong>예측 시점의 입력 가정</strong><p>같은 시간 행의 생산량과 기상값을 예측 시점에 안다는 기존 대회 모델링 가정을 적용했다. 실제 운영에서 이 값이 시간 종료 후에만 확정된다면, 해당 입력을 예보값 또는 이전 확정값으로 교체해 성능을 다시 평가해야 한다.</p></div></section>
+<section id="features"><span class="section-number">03 · 입력 변수 설계</span><h2>현재 상태와 변화 추세를 함께 넣었다</h2><p>기본 12개 변수는 달력, 현재전력, 생산량, 기상값이다. 여기에 15분 위치, 현재 기준 시차 1·2·4·8·16·96칸, 변화량 4개와 1·2·4시간 평균·최대 6개를 넣어 29개를 구성했다. 마지막으로 목표 시각의 sin·cos, 요일·월·분과 최근 1시간 전력 표준편차 6개를 추가해 최종 35개 입력이 됐다.</p><p>변화량은 예를 들어 <span class="code">전력변화_60분 = 현재전력 − 과거전력_4칸</span>이다. 이동 평균·최대도 현재 또는 과거 관측만 사용한다. 시간 sin·cos는 24시와 0시가 이어지는 하루의 주기를 표현한다. 전력 표준편차는 목표 이전 네 전력 관측의 변동 폭을 나타낸다.</p><h3>최종 35개 변수 전체</h3><p><span class="code">HS_</span> 접두사는 추가 후보 변수의 생성 경로를 구분하기 위한 열 이름이며, 예측에는 표에 적힌 수치가 그대로 사용된다.</p><div class="table-scroll tall"><table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>번호</th>
+      <th>변수</th>
+      <th>묶음</th>
+      <th>의미</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>1</td>
+      <td>주중여부</td>
+      <td>달력</td>
+      <td>2021년 달력 기준 평일 및 평일 공휴일 여부. 두 값 모두 0 또는 1.</td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td>주중공휴일여부</td>
+      <td>달력</td>
+      <td>2021년 달력 기준 평일 및 평일 공휴일 여부. 두 값 모두 0 또는 1.</td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td>시간</td>
+      <td>달력</td>
+      <td>원본 시간(0–23)</td>
+    </tr>
+    <tr>
+      <td>4</td>
+      <td>현재전력</td>
+      <td>전력 이력</td>
+      <td>예측 시각 t에 마지막으로 관측된 전력.</td>
+    </tr>
+    <tr>
+      <td>5</td>
+      <td>생산량</td>
+      <td>생산·기상</td>
+      <td>원본의 동일 시간 행 값. 예측 시점에 알려진다고 가정.</td>
+    </tr>
+    <tr>
+      <td>6</td>
+      <td>기온</td>
+      <td>생산·기상</td>
+      <td>원본의 동일 시간 행 값. 예측 시점에 알려진다고 가정.</td>
+    </tr>
+    <tr>
+      <td>7</td>
+      <td>풍속</td>
+      <td>생산·기상</td>
+      <td>원본의 동일 시간 행 값. 예측 시점에 알려진다고 가정.</td>
+    </tr>
+    <tr>
+      <td>8</td>
+      <td>습도</td>
+      <td>생산·기상</td>
+      <td>원본의 동일 시간 행 값. 예측 시점에 알려진다고 가정.</td>
+    </tr>
+    <tr>
+      <td>9</td>
+      <td>강수량</td>
+      <td>생산·기상</td>
+      <td>원본의 동일 시간 행 값. 예측 시점에 알려진다고 가정.</td>
+    </tr>
+    <tr>
+      <td>10</td>
+      <td>day</td>
+      <td>달력</td>
+      <td>원본 day 코드</td>
+    </tr>
+    <tr>
+      <td>11</td>
+      <td>d</td>
+      <td>달력</td>
+      <td>월의 일</td>
+    </tr>
+    <tr>
+      <td>12</td>
+      <td>m</td>
+      <td>달력</td>
+      <td>월</td>
+    </tr>
+    <tr>
+      <td>13</td>
+      <td>15분위치</td>
+      <td>달력</td>
+      <td>해당 시간의 4개 관측 위치(0–3)</td>
+    </tr>
+    <tr>
+      <td>14</td>
+      <td>과거전력_1칸</td>
+      <td>전력 이력</td>
+      <td>현재 시각 t의 1×15분 전 관측 전력.</td>
+    </tr>
+    <tr>
+      <td>15</td>
+      <td>과거전력_2칸</td>
+      <td>전력 이력</td>
+      <td>현재 시각 t의 2×15분 전 관측 전력.</td>
+    </tr>
+    <tr>
+      <td>16</td>
+      <td>과거전력_4칸</td>
+      <td>전력 이력</td>
+      <td>현재 시각 t의 4×15분 전 관측 전력.</td>
+    </tr>
+    <tr>
+      <td>17</td>
+      <td>과거전력_96칸</td>
+      <td>전력 이력</td>
+      <td>현재 시각 t의 96×15분 전 관측 전력.</td>
+    </tr>
+    <tr>
+      <td>18</td>
+      <td>전력변화_15분</td>
+      <td>전력 변화</td>
+      <td>현재전력과 15분 전 전력의 차이.</td>
+    </tr>
+    <tr>
+      <td>19</td>
+      <td>전력변화_60분</td>
+      <td>전력 변화</td>
+      <td>현재전력과 60분 전 전력의 차이.</td>
+    </tr>
+    <tr>
+      <td>20</td>
+      <td>최근1시간_전력평균</td>
+      <td>이동 통계</td>
+      <td>현재 및 이전 관측만 사용한 해당 구간의 평균 또는 최대.</td>
+    </tr>
+    <tr>
+      <td>21</td>
+      <td>최근1시간_전력최대</td>
+      <td>이동 통계</td>
+      <td>현재 및 이전 관측만 사용한 해당 구간의 평균 또는 최대.</td>
+    </tr>
+    <tr>
+      <td>22</td>
+      <td>과거전력_8칸</td>
+      <td>전력 이력</td>
+      <td>현재 시각 t의 8×15분 전 관측 전력.</td>
+    </tr>
+    <tr>
+      <td>23</td>
+      <td>과거전력_16칸</td>
+      <td>전력 이력</td>
+      <td>현재 시각 t의 16×15분 전 관측 전력.</td>
+    </tr>
+    <tr>
+      <td>24</td>
+      <td>전력변화_2시간</td>
+      <td>전력 변화</td>
+      <td>현재전력과 2시간 전 전력의 차이.</td>
+    </tr>
+    <tr>
+      <td>25</td>
+      <td>전력변화_4시간</td>
+      <td>전력 변화</td>
+      <td>현재전력과 4시간 전 전력의 차이.</td>
+    </tr>
+    <tr>
+      <td>26</td>
+      <td>최근2시간_전력평균</td>
+      <td>이동 통계</td>
+      <td>현재 및 이전 관측만 사용한 해당 구간의 평균 또는 최대.</td>
+    </tr>
+    <tr>
+      <td>27</td>
+      <td>최근2시간_전력최대</td>
+      <td>이동 통계</td>
+      <td>현재 및 이전 관측만 사용한 해당 구간의 평균 또는 최대.</td>
+    </tr>
+    <tr>
+      <td>28</td>
+      <td>최근4시간_전력평균</td>
+      <td>이동 통계</td>
+      <td>현재 및 이전 관측만 사용한 해당 구간의 평균 또는 최대.</td>
+    </tr>
+    <tr>
+      <td>29</td>
+      <td>최근4시간_전력최대</td>
+      <td>이동 통계</td>
+      <td>현재 및 이전 관측만 사용한 해당 구간의 평균 또는 최대.</td>
+    </tr>
+    <tr>
+      <td>30</td>
+      <td>HS_시간_sin</td>
+      <td>순환 시간</td>
+      <td>목표 시각 T의 시각을 24시간 주기로 변환한 sin 또는 cos 값.</td>
+    </tr>
+    <tr>
+      <td>31</td>
+      <td>HS_시간_cos</td>
+      <td>순환 시간</td>
+      <td>목표 시각 T의 시각을 24시간 주기로 변환한 sin 또는 cos 값.</td>
+    </tr>
+    <tr>
+      <td>32</td>
+      <td>HS_요일</td>
+      <td>목표 달력</td>
+      <td>목표 시각 T의 요일(월요일 0), 월 또는 분.</td>
+    </tr>
+    <tr>
+      <td>33</td>
+      <td>HS_월</td>
+      <td>목표 달력</td>
+      <td>목표 시각 T의 요일(월요일 0), 월 또는 분.</td>
+    </tr>
+    <tr>
+      <td>34</td>
+      <td>HS_분</td>
+      <td>목표 달력</td>
+      <td>목표 시각 T의 요일(월요일 0), 월 또는 분.</td>
+    </tr>
+    <tr>
+      <td>35</td>
+      <td>HS_이전1시간표준편차</td>
+      <td>전력 변동성</td>
+      <td>목표 이전 1시간의 전력 4개에 대한 표본 표준편차.</td>
+    </tr>
+  </tbody>
+</table></div><div class="note"><strong>누출 점검</strong><p>정답 <span class="code">전력</span>과 목표 시각 이후의 전력은 입력에서 제외했다. 현재전력 및 파생 이력은 t까지의 관측만 사용한다. 최종 CSV의 선택 입력 35개와 정답에는 결측치가 없다. 원본 데이터가 미래 계획·예보가 아닌 사후 생산 실적이라면 생산·기상 입력의 가용성 가정은 별도로 확인해야 한다.</p></div></section>
+<section id="validation"><span class="section-number">04 · 분할과 평가 기준</span><h2>시간 순서로 학습과 시험을 분리했다</h2><p>같은 공장의 연속 관측을 무작위로 섞으면 과거·미래가 학습과 시험에 뒤섞인다. 그래서 날짜 순서의 앞 약 70%를 학습, 뒤 약 30%를 시험으로 정했다. 최종 학습은 16,895행, 시험은 7,294행이다. 경계 1행을 제외해 학습 정답과 첫 시험 입력이 직접 연결되는 부분을 제거했다.</p><p>학습의 마지막 목표 시각은 2021-06-27 00:00:00, 시험의 첫 목표 시각은 2021-06-27 00:30:00이다. 시험은 2021-09-15 00:00:00까지다. 학습 내부는 날짜별 확장형 TimeSeriesSplit 5-fold이며, 매 fold에서도 학습 마지막 경계 1행을 제외했다. 마지막 fold의 검증이 외부 학습 범위를 넘지 않도록 인덱스를 제한했다.</p><div class="table-scroll"><table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>fold</th>
+      <th>학습 수</th>
+      <th>검증 수</th>
+      <th>학습 마지막 목표 시각</th>
+      <th>검증 첫 목표 시각</th>
+      <th>검증 끝 목표 시각</th>
+      <th>MSE</th>
+      <th>MAE</th>
+      <th>R²</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>1</td>
+      <td>2975</td>
+      <td>2784</td>
+      <td>2021-02-02 00:00:00</td>
+      <td>2021-02-02 00:30:00</td>
+      <td>2021-03-03 00:15:00</td>
+      <td>48.605</td>
+      <td>4.754</td>
+      <td>0.984</td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td>5759</td>
+      <td>2784</td>
+      <td>2021-03-03 00:00:00</td>
+      <td>2021-03-03 00:30:00</td>
+      <td>2021-04-01 00:15:00</td>
+      <td>25.358</td>
+      <td>2.119</td>
+      <td>0.992</td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td>8543</td>
+      <td>2784</td>
+      <td>2021-04-01 00:00:00</td>
+      <td>2021-04-01 00:30:00</td>
+      <td>2021-04-30 00:15:00</td>
+      <td>70.471</td>
+      <td>6.099</td>
+      <td>0.976</td>
+    </tr>
+    <tr>
+      <td>4</td>
+      <td>11327</td>
+      <td>2784</td>
+      <td>2021-04-30 00:00:00</td>
+      <td>2021-04-30 00:30:00</td>
+      <td>2021-05-29 00:15:00</td>
+      <td>25.942</td>
+      <td>2.892</td>
+      <td>0.991</td>
+    </tr>
+    <tr>
+      <td>5</td>
+      <td>14111</td>
+      <td>2783</td>
+      <td>2021-05-29 00:00:00</td>
+      <td>2021-05-29 00:30:00</td>
+      <td>2021-06-27 00:00:00</td>
+      <td>11.721</td>
+      <td>2.083</td>
+      <td>0.996</td>
+    </tr>
+  </tbody>
+</table></div><div class="duo"><div class="note"><strong>모델 선택</strong><p>주 지표는 5-fold 검증 MSE 평균이다. <span class="code">MSE = 평균((실제−예측)²)</span>로 큰 오차를 더 강하게 반영한다. 후보와 파라미터는 검증 평균 MSE로 선정했다.</p></div><div class="note"><strong>시험 보고</strong><p>시험 MSE와 함께 <span class="code">MAE = 평균(|실제−예측|)</span>, R²를 보고한다. MAE는 원래 전력 단위의 오차다. 시험값은 최종 평가 지표이며 후보 선택 기준으로 사용하지 않았다.</p></div></div><p>최종 모델은 시험 기간에도 15분마다 직전 실제 관측이 새로 들어온다는 순차 1단계 예측 조건이다. 하루 96개 전력을 하루 시작 시점에 한꺼번에 예측하는 문제와 평가 조건이 다르다.</p></section>
+<section id="development"><span class="section-number">05 · 모델과 변수 탐색</span><h2>작은 기준 모델에서 단계적으로 개선했다</h2><h3>첫 기준: 네 가지 트리 계열 회귀</h3><p>RandomForest(나무 100개, 잎 최소 2), ExtraTrees(나무 100개, 잎 최소 2), GradientBoosting(나무 120개), HistGradientBoosting(최대 반복 180)을 비교했다. 처음 12개 기본 입력과 이후 15분 위치·과거전력 변수를 추가한 입력을 <b>동일한 24,190개 공통 표본</b>에서 다시 비교한 결과는 다음과 같다. 숫자만 비교할 때 표본이 달랐던 초기 24,477행 보고서의 성적은 이 표에 섞지 않았다.</p><div class="table-scroll"><table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>입력</th>
+      <th>모델</th>
+      <th>CV MSE</th>
+      <th>CV MAE</th>
+      <th>시험 MSE</th>
+      <th>시험 MAE</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>기존 변수</td>
+      <td>ExtraTrees</td>
+      <td>150.143</td>
+      <td>8.053</td>
+      <td>152.276</td>
+      <td>7.696</td>
+    </tr>
+    <tr>
+      <td>파생변수 추가</td>
+      <td>ExtraTrees</td>
+      <td>53.336</td>
+      <td>4.198</td>
+      <td>77.316</td>
+      <td>5.482</td>
+    </tr>
+    <tr>
+      <td>기존 변수</td>
+      <td>GradientBoosting</td>
+      <td>156.880</td>
+      <td>8.290</td>
+      <td>151.480</td>
+      <td>7.979</td>
+    </tr>
+    <tr>
+      <td>파생변수 추가</td>
+      <td>GradientBoosting</td>
+      <td>105.524</td>
+      <td>6.867</td>
+      <td>108.090</td>
+      <td>6.774</td>
+    </tr>
+    <tr>
+      <td>기존 변수</td>
+      <td>HistGradientBoosting</td>
+      <td>153.337</td>
+      <td>8.106</td>
+      <td>147.575</td>
+      <td>7.658</td>
+    </tr>
+    <tr>
+      <td>파생변수 추가</td>
+      <td>HistGradientBoosting</td>
+      <td>65.740</td>
+      <td>5.210</td>
+      <td>76.333</td>
+      <td>5.558</td>
+    </tr>
+    <tr>
+      <td>기존 변수</td>
+      <td>RandomForest</td>
+      <td>154.175</td>
+      <td>8.039</td>
+      <td>163.983</td>
+      <td>8.124</td>
+    </tr>
+    <tr>
+      <td>파생변수 추가</td>
+      <td>RandomForest</td>
+      <td>56.681</td>
+      <td>4.531</td>
+      <td>83.231</td>
+      <td>5.764</td>
+    </tr>
+  </tbody>
+</table></div><p>과거 전력 정보가 들어가자 ExtraTrees의 CV MSE는 150.143에서 53.336으로 낮아졌다. 15분 관측의 강한 관성을 입력에 반영한 효과가 컸다. GradientBoosting은 이 설정에서 개선폭이 비교적 작았다.</p><h3>공통 입력 묶음 A–G</h3><p>네 모델의 하이퍼파라미터를 고정하고 입력만 바꿨다. A=기본 12개, B=15분 위치 추가, C=최근 1시간 이력, D=C에 전날 값 추가, E=C에 최근 2·4시간 이력 추가, F=D와 최근 2·4시간 결합, G=F에 생산량 파생 3개를 추가한 구성이다. 4모델×7묶음×5-fold, 총 140개 fold 학습으로 비교했다. 아래는 검증 MSE이며 낮을수록 좋다.</p><div class="table-scroll"><table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>묶음</th>
+      <th>입력 수</th>
+      <th>ExtraTrees</th>
+      <th>HistGradientBoosting</th>
+      <th>RandomForest</th>
+      <th>GradientBoosting</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>A 기본 12개</td>
+      <td>12</td>
+      <td>150.143</td>
+      <td>153.337</td>
+      <td>154.175</td>
+      <td>156.880</td>
+    </tr>
+    <tr>
+      <td>B 15분 위치</td>
+      <td>13</td>
+      <td>83.339</td>
+      <td>88.896</td>
+      <td>77.780</td>
+      <td>125.980</td>
+    </tr>
+    <tr>
+      <td>C 최근 1시간</td>
+      <td>20</td>
+      <td>59.101</td>
+      <td>72.342</td>
+      <td>59.225</td>
+      <td>102.978</td>
+    </tr>
+    <tr>
+      <td>D 기존 3 데이터</td>
+      <td>21</td>
+      <td>53.336</td>
+      <td>65.740</td>
+      <td>56.681</td>
+      <td>105.524</td>
+    </tr>
+    <tr>
+      <td>E 최근 4시간</td>
+      <td>28</td>
+      <td>44.214</td>
+      <td>51.902</td>
+      <td>50.013</td>
+      <td>98.626</td>
+    </tr>
+    <tr>
+      <td>F 전날+4시간</td>
+      <td>29</td>
+      <td>41.431</td>
+      <td>53.460</td>
+      <td>50.160</td>
+      <td>100.082</td>
+    </tr>
+    <tr>
+      <td>G 생산 변화까지</td>
+      <td>32</td>
+      <td>41.846</td>
+      <td>55.502</td>
+      <td>51.077</td>
+      <td>101.489</td>
+    </tr>
+  </tbody>
+</table></div><p>ExtraTrees는 F 29개에서 CV MSE 41.431로 가장 좋았고 생산 파생 3개를 더한 G는 41.85로 개선되지 않았다. 모델별 최선 묶음을 시험에서 확인했을 때 ExtraTrees F의 MSE는 68.799였다.</p><div class="table-scroll"><table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>모델</th>
+      <th>CV 선택 입력</th>
+      <th>CV MSE</th>
+      <th>시험 MSE</th>
+      <th>시험 MAE</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>ExtraTrees</td>
+      <td>F 전날+4시간</td>
+      <td>41.431</td>
+      <td>68.799</td>
+      <td>5.203</td>
+    </tr>
+    <tr>
+      <td>HistGradientBoosting</td>
+      <td>E 최근 4시간</td>
+      <td>51.902</td>
+      <td>70.497</td>
+      <td>5.358</td>
+    </tr>
+    <tr>
+      <td>RandomForest</td>
+      <td>E 최근 4시간</td>
+      <td>50.013</td>
+      <td>80.187</td>
+      <td>5.603</td>
+    </tr>
+    <tr>
+      <td>GradientBoosting</td>
+      <td>E 최근 4시간</td>
+      <td>98.626</td>
+      <td>102.920</td>
+      <td>6.489</td>
+    </tr>
+  </tbody>
+</table></div><h3>두 모델의 진단</h3><p>ExtraTrees와 HistGradientBoosting 모두 F 29개를 사용해 학습·검증·시험 오차, 잔차 분포, 고전력 구간, 변수 중복을 점검했다. ExtraTrees의 학습 MSE 3.756과 CV MSE 41.431 사이 차이가 있어 훈련 적합이 강하다. 다섯 검증 fold의 난도도 다르다. 한편 HistGradientBoosting은 시험 MSE 71.133으로 ExtraTrees의 68.799보다 높았다.</p><div class="table-scroll"><table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>모델</th>
+      <th>학습 MSE</th>
+      <th>CV MSE</th>
+      <th>CV 표준편차</th>
+      <th>시험 MSE</th>
+      <th>시험 MAE</th>
+      <th>시험 R²</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>ExtraTrees</td>
+      <td>3.756</td>
+      <td>41.431</td>
+      <td>25.908</td>
+      <td>68.799</td>
+      <td>5.203</td>
+      <td>0.982</td>
+    </tr>
+    <tr>
+      <td>HistGradientBoosting</td>
+      <td>24.944</td>
+      <td>53.460</td>
+      <td>23.169</td>
+      <td>71.133</td>
+      <td>5.372</td>
+      <td>0.981</td>
+    </tr>
+  </tbody>
+</table></div><p>F 29개 중 선형 독립 차원은 25였고 |상관계수|≥0.90인 쌍은 44개였다. 변화량 4개가 현재전력과 시차 전력의 정확한 차이이기 때문이다. 나무 모델에서 중복 변수를 제거한 19개 축약 입력은 ExtraTrees CV MSE 47.803으로 29개 F의 41.431보다 나빠져 F를 유지했다. 변수 중요도를 인과 효과로 해석하지 않는 것이 적절하다.</p><h3>ExtraTrees의 넓은 탐색과 좁은 탐색</h3><p>먼저 조건부 랜덤서치 36개와 기준 모델 1개를 비교했다. seed=42, 5-fold 기준 총 185개 fold 학습이다. 기준 설정(나무 100개, 잎 최소 2, 분할 최소 2, 깊이 제한 없음, bootstrap=False)이 CV MSE 41.431로 이 탐색의 1위였다.</p><div class="table-scroll"><table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>파라미터</th>
+      <th>탐색 값</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>n_estimators</td>
+      <td>100, 200, 300</td>
+    </tr>
+    <tr>
+      <td>max_features</td>
+      <td>0.4, 0.6, 0.8, 1.0</td>
+    </tr>
+    <tr>
+      <td>min_samples_leaf</td>
+      <td>1, 2, 3, 5, 8, 12</td>
+    </tr>
+    <tr>
+      <td>min_samples_split</td>
+      <td>2, 4, 8, 16</td>
+    </tr>
+    <tr>
+      <td>max_depth</td>
+      <td>None, 12, 20, 32, 48</td>
+    </tr>
+    <tr>
+      <td>bootstrap</td>
+      <td>False, True</td>
+    </tr>
+    <tr>
+      <td>max_samples_when_bootstrap</td>
+      <td>0.6, 0.8, 1.0</td>
+    </tr>
+  </tbody>
+</table></div><p>그다음 기준점 주변에서 단일 요인 11개, 무작위 조합 24개와 기준점 1개, 총 36개 후보를 검증했다. 가장 낮은 CV MSE를 낸 설정은 나무 300개·잎 최소 2·분할 최소 6·깊이 32로, CV MSE 40.696, 시험 MSE 66.799였다.</p><div class="table-scroll"><table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>파라미터</th>
+      <th>탐색 값</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>n_estimators</td>
+      <td>100, 200, 300</td>
+    </tr>
+    <tr>
+      <td>max_features</td>
+      <td>0.85, 0.9, 1.0</td>
+    </tr>
+    <tr>
+      <td>min_samples_leaf</td>
+      <td>1, 2, 3, 4</td>
+    </tr>
+    <tr>
+      <td>min_samples_split</td>
+      <td>2, 4, 6</td>
+    </tr>
+    <tr>
+      <td>max_depth</td>
+      <td>None, 32, 48</td>
+    </tr>
+    <tr>
+      <td>bootstrap</td>
+      <td>False</td>
+    </tr>
+  </tbody>
+</table></div><div class="note"><strong>단계별 비교의 조건</strong><p>초기 1–4단계의 CV에는 마지막 외부 학습 경계 1행이 마지막 검증 fold에 다시 포함되는 문제가 있었다. 최종 평가에서는 CV 검증을 외부 학습 인덱스 안으로 제한했다. 따라서 최종 단계와 이전 단계의 CV 숫자는 경계 조건이 소폭 다르며, 개선 여부는 마지막 단계에서 같은 수정 조건으로 재학습한 비교 표로 판단한다.</p></div><h3>최종 입력과 모델 설정의 비교</h3><p>29개 F를 기준으로 시간 sin/cos·목표 요일·월·분, 전력 표준편차, 목표 기준 전날·전주 시차, 이전 확정 생산·기상 등 입력 묶음을 나눠 비교했다. 두 ExtraTrees 설정을 교차 적용하고 최선 입력에서 잎·분할·깊이·변수 비율·나무 수를 국소 탐색한 단일 후보는 총 27개다.</p><p>검증 상위 8개의 OOF 예측으로 두 모델 평균 가중치 0.1~0.9를 비교한 조합은 252개다. 단일 최선 CV MSE는 36.419, 최선 앙상블은 36.331이었다. 앙상블의 개선율은 0.24% 수준이라 사전에 정한 최소 0.5% 개선 기준에 못 미쳤다. 따라서 단일 ExtraTrees를 최종 선택했다.</p><div class="table-scroll"><table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>후보</th>
+      <th>입력 수</th>
+      <th>CV MSE</th>
+      <th>CV 표준편차</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>local_4</td>
+      <td>35</td>
+      <td>36.419</td>
+      <td>20.737</td>
+    </tr>
+    <tr>
+      <td>local_2</td>
+      <td>35</td>
+      <td>37.605</td>
+      <td>22.917</td>
+    </tr>
+    <tr>
+      <td>local_5</td>
+      <td>35</td>
+      <td>37.735</td>
+      <td>22.562</td>
+    </tr>
+    <tr>
+      <td>local_7</td>
+      <td>35</td>
+      <td>37.746</td>
+      <td>22.828</td>
+    </tr>
+    <tr>
+      <td>local_8</td>
+      <td>35</td>
+      <td>37.816</td>
+      <td>22.895</td>
+    </tr>
+    <tr>
+      <td>BG_clock_std_BGparams</td>
+      <td>35</td>
+      <td>37.901</td>
+      <td>23.214</td>
+    </tr>
+    <tr>
+      <td>local_6</td>
+      <td>35</td>
+      <td>37.907</td>
+      <td>23.250</td>
+    </tr>
+    <tr>
+      <td>local_3</td>
+      <td>35</td>
+      <td>38.600</td>
+      <td>22.658</td>
+    </tr>
+    <tr>
+      <td>BG_clock_BGparams</td>
+      <td>34</td>
+      <td>39.091</td>
+      <td>23.228</td>
+    </tr>
+    <tr>
+      <td>BG_daily_BGparams</td>
+      <td>30</td>
+      <td>39.415</td>
+      <td>22.852</td>
+    </tr>
+  </tbody>
+</table></div></section>
+<section id="final"><span class="section-number">06 · 최종 모델 구성 및 학습</span><h2>선택된 35개 입력으로 ExtraTrees를 학습했다</h2><p>최종 선정 모델은 ExtraTrees 회귀다. F의 29개 입력에 목표 시각 sin/cos, 요일, 월, 분, 직전 1시간 전력 표준편차 6개를 추가했다. <span class="code">ColumnTransformer → SimpleImputer → ExtraTreesRegressor</span> 순으로 구성하고, 저장 형식을 통일하기 위해 한 모델·가중치 1.0의 VotingRegressor에 담았다.</p><div class="table-scroll"><table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>단계</th>
+      <th>방법</th>
+      <th>설정</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>입력 선택</td>
+      <td>ColumnTransformer</td>
+      <td>선택한 35개 열을 저장 순서대로 통과, 나머지 열 drop</td>
+    </tr>
+    <tr>
+      <td>잔여 결측 보호</td>
+      <td>SimpleImputer</td>
+      <td>strategy=median, add_indicator=True, keep_empty_features=True; fold 학습에서만 fit</td>
+    </tr>
+    <tr>
+      <td>수치 스케일링</td>
+      <td>없음</td>
+      <td>ExtraTrees는 변수 크기에 의한 거리 계산을 하지 않음; 최종 입력 35개 결측 0개</td>
+    </tr>
+    <tr>
+      <td>예측기</td>
+      <td>ExtraTreesRegressor</td>
+      <td>n_estimators=300, min_samples_leaf=3, min_samples_split=6, max_depth=32, max_features=1.0</td>
+    </tr>
+    <tr>
+      <td>최종 래퍼</td>
+      <td>VotingRegressor</td>
+      <td>선정 결과 단일 모델, weight=1.0, n_jobs=1</td>
+    </tr>
+  </tbody>
+</table></div><h3>최종 ExtraTrees 전체 파라미터</h3><p>아래는 저장된 joblib에서 읽은 ExtraTreesRegressor의 전체 설정이다. random_state=42, n_jobs=4를 사용했다. <span class="code">criterion=squared_error</span>이며 최종 출력은 회귀 전력값이다.</p><div class="table-scroll tall"><table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>설정</th>
+      <th>값</th>
+      <th>탐색 여부</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>bootstrap</td>
+      <td>False</td>
+      <td>최종 탐색</td>
+    </tr>
+    <tr>
+      <td>ccp_alpha</td>
+      <td>0.0</td>
+      <td>고정 또는 기본값</td>
+    </tr>
+    <tr>
+      <td>criterion</td>
+      <td>squared_error</td>
+      <td>고정 또는 기본값</td>
+    </tr>
+    <tr>
+      <td>max_depth</td>
+      <td>32</td>
+      <td>최종 탐색</td>
+    </tr>
+    <tr>
+      <td>max_features</td>
+      <td>1.0</td>
+      <td>최종 탐색</td>
+    </tr>
+    <tr>
+      <td>max_leaf_nodes</td>
+      <td>None</td>
+      <td>고정 또는 기본값</td>
+    </tr>
+    <tr>
+      <td>max_samples</td>
+      <td>None</td>
+      <td>고정 또는 기본값</td>
+    </tr>
+    <tr>
+      <td>min_impurity_decrease</td>
+      <td>0.0</td>
+      <td>고정 또는 기본값</td>
+    </tr>
+    <tr>
+      <td>min_samples_leaf</td>
+      <td>3</td>
+      <td>최종 탐색</td>
+    </tr>
+    <tr>
+      <td>min_samples_split</td>
+      <td>6</td>
+      <td>최종 탐색</td>
+    </tr>
+    <tr>
+      <td>min_weight_fraction_leaf</td>
+      <td>0.0</td>
+      <td>고정 또는 기본값</td>
+    </tr>
+    <tr>
+      <td>monotonic_cst</td>
+      <td>None</td>
+      <td>고정 또는 기본값</td>
+    </tr>
+    <tr>
+      <td>n_estimators</td>
+      <td>300</td>
+      <td>최종 탐색</td>
+    </tr>
+    <tr>
+      <td>n_jobs</td>
+      <td>4</td>
+      <td>고정 또는 기본값</td>
+    </tr>
+    <tr>
+      <td>oob_score</td>
+      <td>False</td>
+      <td>고정 또는 기본값</td>
+    </tr>
+    <tr>
+      <td>random_state</td>
+      <td>42</td>
+      <td>고정 또는 기본값</td>
+    </tr>
+    <tr>
+      <td>verbose</td>
+      <td>0</td>
+      <td>고정 또는 기본값</td>
+    </tr>
+    <tr>
+      <td>warm_start</td>
+      <td>False</td>
+      <td>고정 또는 기본값</td>
+    </tr>
+  </tbody>
+</table></div><h3>스케일링과 결측 대치의 역할</h3><p>ExtraTrees는 변수값의 순서와 분할 경계를 이용하므로 표준화·정규화 스케일러를 쓰지 않았다. 최종 선택 표본 24,190행×35개 입력에는 결측이 0개다. 따라서 median imputer는 이번 평가 표본의 값을 실제로 바꾸지 않았으며, 추후 같은 스키마에 결측이 유입될 때 훈련 fold의 중앙값을 사용하도록 둔 보호 단계다. 각 CV fold에서 변환기는 검증 행을 보지 않고 학습 행에만 fit한다.</p><p>검증으로 최종 설정을 고정한 뒤 외부 학습 16,895행에 적합했다. 시험 7,294행은 학습에 넣지 않았다. 제출한 joblib에는 선택 입력 순서, 설정, 예측기와 결과 요약을 함께 저장했다.</p></section>
+<section id="results"><span class="section-number">07 · 시험 성능과 오류 특성</span><h2>동일 시험 기간의 MSE를 60.163까지 낮췄다</h2><p>아래 비교의 모든 모델은 같은 학습 16,895행과 같은 시험 7,294행에서 다시 적합해 평가했다. 다른 시험 기간을 사용한 서로 다른 기간의 기존 모델 점수와 혼합하지 않았다.</p><div class="table-scroll"><table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>동일 기간 비교</th>
+      <th>CV MSE</th>
+      <th>시험 MSE</th>
+      <th>시험 MAE</th>
+      <th>시험 R²</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>최종 35변수 ExtraTrees</td>
+      <td>36.419</td>
+      <td>60.163</td>
+      <td>4.902</td>
+      <td>0.984</td>
+    </tr>
+    <tr>
+      <td>이전 ExtraTrees 설정·29변수</td>
+      <td>40.682</td>
+      <td>66.799</td>
+      <td>5.125</td>
+      <td>0.982</td>
+    </tr>
+    <tr>
+      <td>다른 ExtraTrees 설정·17변수</td>
+      <td>139.736</td>
+      <td>69.414</td>
+      <td>5.313</td>
+      <td>0.982</td>
+    </tr>
+  </tbody>
+</table></div><div class="summary-grid"><div><small>CV MSE</small><b>36.419</b></div><div><small>시험 MSE</small><b>60.163</b></div><div><small>시험 MAE</small><b>4.902</b></div><div><small>시험 R²</small><b>0.9842</b></div></div><p>이전 29변수 ExtraTrees를 같은 최종 분할 조건에서 재학습한 시험 MSE는 66.799였다. 최종 35변수 모델의 60.163은 이 기준 대비 약 9.9% 감소다. 시험 첫 192개 관측의 실제와 예측 흐름은 다음과 같다.</p><div class="legend"><span><i style="--swatch:#008a8c"></i>실제</span><span><i style="--swatch:#2462a9"></i>최종 예측</span><span><i style="--swatch:#b47727"></i>이전 29변수 모델</span></div><svg viewBox="0 0 890 250" role="img" aria-label="시간에 따른 실제 전력과 예측 전력"><line x1="52" y1="216.0" x2="872" y2="216.0" stroke="#d9e4ec"/><text x="44" y="220.0" text-anchor="end" font-size="11" fill="#5a6e7b">8</text><line x1="52" y1="166.0" x2="872" y2="166.0" stroke="#d9e4ec"/><text x="44" y="170.0" text-anchor="end" font-size="11" fill="#5a6e7b">60</text><line x1="52" y1="116.0" x2="872" y2="116.0" stroke="#d9e4ec"/><text x="44" y="120.0" text-anchor="end" font-size="11" fill="#5a6e7b">111</text><line x1="52" y1="66.0" x2="872" y2="66.0" stroke="#d9e4ec"/><text x="44" y="70.0" text-anchor="end" font-size="11" fill="#5a6e7b">163</text><line x1="52" y1="16.0" x2="872" y2="16.0" stroke="#d9e4ec"/><text x="44" y="20.0" text-anchor="end" font-size="11" fill="#5a6e7b">215</text><polyline fill="none" stroke="#008a8c" stroke-width="1.7" points="52.0,201.2 56.3,201.2 60.6,201.2 64.9,201.2 69.2,201.2 73.5,201.2 77.8,201.2 82.1,201.2 86.3,201.2 90.6,200.3 94.9,200.3 99.2,197.4 103.5,200.3 107.8,201.2 112.1,200.3 116.4,202.2 120.7,202.2 125.0,201.2 129.3,201.2 133.6,202.2 137.9,201.2 142.2,201.2 146.5,200.3 150.7,197.4 155.0,200.3 159.3,201.2 163.6,200.3 167.9,201.2 172.2,201.2 176.5,201.2 180.8,201.2 185.1,201.2 189.4,201.2 193.7,201.2 198.0,198.4 202.3,196.4 206.6,198.4 210.8,200.3 215.1,200.3 219.4,200.3 223.7,200.3 228.0,200.3 232.3,200.3 236.6,200.3 240.9,200.3 245.2,200.3 249.5,200.3 253.8,197.4 258.1,193.5 262.4,201.2 266.7,200.3 271.0,200.3 275.2,200.3 279.5,200.3 283.8,200.3 288.1,200.3 292.4,200.3 296.7,200.3 301.0,200.3 305.3,200.3 309.6,195.5 313.9,196.4 318.2,200.3 322.5,200.3 326.8,200.3 331.1,200.3 335.4,200.3 339.6,200.3 343.9,200.3 348.2,200.3 352.5,200.3 356.8,200.3 361.1,200.3 365.4,198.4 369.7,196.4 374.0,199.3 378.3,199.3 382.6,200.3 386.9,201.2 391.2,200.3 395.5,200.3 399.7,200.3 404.0,200.3 408.3,200.3 412.6,200.3 416.9,200.3 421.2,200.3 425.5,195.5 429.8,197.4 434.1,200.3 438.4,200.3 442.7,200.3 447.0,200.3 451.3,200.3 455.6,200.3 459.9,200.3 464.1,201.2 468.4,200.3 472.7,200.3 477.0,201.2 481.3,198.4 485.6,196.4 489.9,199.3 494.2,201.2 498.5,200.3 502.8,200.3 507.1,199.3 511.4,201.2 515.7,200.3 520.0,200.3 524.3,201.2 528.5,200.3 532.8,200.3 537.1,198.4 541.4,196.4 545.7,200.3 550.0,201.2 554.3,200.3 558.6,201.2 562.9,201.2 567.2,201.2 571.5,201.2 575.8,201.2 580.1,196.4 584.4,182.9 588.6,159.8 592.9,134.7 597.2,84.6 601.5,62.5 605.8,40.3 610.1,32.6 614.4,45.1 618.7,48.0 623.0,55.7 627.3,57.6 631.6,93.3 635.9,46.1 640.2,48.0 644.5,61.5 648.8,53.8 653.0,51.9 657.3,37.4 661.6,46.1 665.9,97.2 670.2,115.5 674.5,120.3 678.8,93.3 683.1,60.5 687.4,41.3 691.7,39.3 696.0,39.3 700.3,47.0 704.6,58.6 708.9,51.9 713.2,41.3 717.4,74.0 721.7,42.2 726.0,36.4 730.3,41.3 734.6,57.6 738.9,66.3 743.2,65.4 747.5,57.6 751.8,96.2 756.1,104.9 760.4,63.4 764.7,50.9 769.0,47.0 773.3,45.1 777.5,61.5 781.8,58.6 786.1,71.1 790.4,60.5 794.7,66.3 799.0,106.8 803.3,117.4 807.6,114.5 811.9,116.4 816.2,114.5 820.5,112.6 824.8,107.8 829.1,104.9 833.4,114.5 837.7,125.1 841.9,123.2 846.2,116.4 850.5,108.7 854.8,102.0 859.1,116.4 863.4,116.4 867.7,145.3 872.0,158.8"/><polyline fill="none" stroke="#2462a9" stroke-width="1.7" points="52.0,201.0 56.3,201.0 60.6,201.1 64.9,201.2 69.2,201.1 73.5,201.2 77.8,201.0 82.1,201.2 86.3,201.1 90.6,200.9 94.9,199.7 99.2,200.1 103.5,199.7 107.8,201.2 112.1,201.4 116.4,200.6 120.7,202.0 125.0,202.0 129.3,201.1 133.6,201.3 137.9,201.8 142.2,200.8 146.5,199.5 150.7,199.0 155.0,200.0 159.3,201.5 163.6,201.5 167.9,199.4 172.2,201.0 176.5,201.1 180.8,200.8 185.1,200.2 189.4,201.0 193.7,200.6 198.0,200.0 202.3,195.3 206.6,199.7 210.8,200.6 215.1,201.1 219.4,200.6 223.7,200.7 228.0,200.3 232.3,200.2 236.6,200.4 240.9,200.5 245.2,199.5 249.5,199.2 253.8,200.0 258.1,200.4 262.4,182.6 266.7,199.5 271.0,199.5 275.2,199.8 279.5,200.3 283.8,200.1 288.1,199.9 292.4,200.2 296.7,200.1 301.0,199.6 305.3,199.7 309.6,198.9 313.9,196.4 318.2,200.1 322.5,199.9 326.8,200.3 331.1,200.6 335.4,200.2 339.6,199.8 343.9,200.1 348.2,200.7 352.5,200.2 356.8,199.7 361.1,198.8 365.4,199.0 369.7,198.4 374.0,199.7 378.3,200.7 382.6,200.4 386.9,200.8 391.2,200.9 395.5,200.5 399.7,200.4 404.0,200.4 408.3,200.6 412.6,199.8 416.9,199.3 421.2,199.2 425.5,200.3 429.8,196.5 434.1,200.4 438.4,200.6 442.7,200.5 447.0,199.9 451.3,199.7 455.6,198.2 459.9,196.7 464.1,200.1 468.4,200.8 472.7,199.1 477.0,199.9 481.3,200.6 485.6,197.3 489.9,198.8 494.2,200.2 498.5,201.2 502.8,200.3 507.1,200.2 511.4,199.3 515.7,201.1 520.0,200.3 524.3,200.6 528.5,200.9 532.8,199.9 537.1,199.3 541.4,197.5 545.7,198.5 550.0,200.9 554.3,201.1 558.6,200.3 562.9,200.7 567.2,201.2 571.5,201.1 575.8,201.0 580.1,199.6 584.4,189.5 588.6,159.6 592.9,127.8 597.2,81.3 601.5,66.4 605.8,45.3 610.1,29.8 614.4,45.0 618.7,48.6 623.0,55.5 627.3,56.7 631.6,91.3 635.9,50.4 640.2,48.7 644.5,60.1 648.8,55.7 653.0,49.9 657.3,42.9 661.6,44.9 665.9,96.5 670.2,116.4 674.5,120.4 678.8,93.7 683.1,58.8 687.4,43.7 691.7,39.7 696.0,39.2 700.3,48.4 704.6,58.3 708.9,52.7 713.2,44.3 717.4,76.4 721.7,46.5 726.0,36.7 730.3,41.6 734.6,56.9 738.9,65.1 743.2,64.8 747.5,58.7 751.8,97.2 756.1,105.7 760.4,68.9 764.7,51.6 769.0,48.2 773.3,47.3 777.5,60.8 781.8,60.8 786.1,70.3 790.4,62.7 794.7,67.1 799.0,101.1 803.3,117.2 807.6,113.3 811.9,114.9 816.2,114.3 820.5,113.0 824.8,109.1 829.1,105.7 833.4,112.4 837.7,125.8 841.9,122.6 846.2,118.1 850.5,110.8 854.8,105.1 859.1,114.0 863.4,117.9 867.7,142.7 872.0,160.0"/><polyline fill="none" stroke="#b47727" stroke-width="1.7" points="52.0,201.0 56.3,200.9 60.6,201.1 64.9,201.0 69.2,201.1 73.5,201.0 77.8,201.0 82.1,200.9 86.3,201.1 90.6,200.6 94.9,199.9 99.2,199.8 103.5,200.1 107.8,201.2 112.1,201.3 116.4,200.6 120.7,201.9 125.0,201.9 129.3,201.5 133.6,201.3 137.9,201.6 142.2,200.9 146.5,199.6 150.7,198.8 155.0,200.6 159.3,201.5 163.6,201.3 167.9,200.4 172.2,201.0 176.5,201.2 180.8,201.3 185.1,200.9 189.4,201.1 193.7,200.6 198.0,200.2 202.3,194.1 206.6,200.4 210.8,200.9 215.1,200.9 219.4,199.7 223.7,200.4 228.0,200.4 232.3,200.2 236.6,200.1 240.9,200.4 245.2,199.4 249.5,198.9 253.8,199.6 258.1,200.3 262.4,179.0 266.7,199.1 271.0,198.3 275.2,199.2 279.5,200.2 283.8,200.1 288.1,199.7 292.4,200.2 296.7,200.0 301.0,199.4 305.3,199.3 309.6,198.5 313.9,195.6 318.2,199.7 322.5,200.0 326.8,200.1 331.1,200.5 335.4,200.2 339.6,199.7 343.9,200.2 348.2,200.6 352.5,200.2 356.8,199.3 361.1,198.6 365.4,198.9 369.7,197.3 374.0,199.2 378.3,201.0 382.6,200.2 386.9,200.7 391.2,200.0 395.5,200.4 399.7,200.4 404.0,200.5 408.3,199.9 412.6,199.7 416.9,199.1 421.2,199.1 425.5,199.7 429.8,195.3 434.1,200.0 438.4,200.5 442.7,199.4 447.0,199.9 451.3,199.9 455.6,200.1 459.9,198.1 464.1,200.1 468.4,200.3 472.7,198.7 477.0,199.4 481.3,200.2 485.6,196.9 489.9,198.9 494.2,199.1 498.5,200.9 502.8,200.3 507.1,200.1 511.4,199.1 515.7,200.8 520.0,200.1 524.3,200.6 528.5,200.4 532.8,199.8 537.1,199.1 541.4,196.8 545.7,199.7 550.0,200.8 554.3,200.8 558.6,200.5 562.9,200.8 567.2,201.2 571.5,201.1 575.8,201.0 580.1,199.8 584.4,189.6 588.6,159.4 592.9,127.9 597.2,81.9 601.5,65.2 605.8,43.8 610.1,32.2 614.4,45.6 618.7,48.6 623.0,56.0 627.3,57.5 631.6,92.6 635.9,48.4 640.2,48.4 644.5,61.2 648.8,55.1 653.0,51.7 657.3,39.9 661.6,45.6 665.9,96.8 670.2,115.4 674.5,120.0 678.8,93.0 683.1,59.8 687.4,42.2 691.7,39.3 696.0,39.0 700.3,47.2 704.6,58.7 708.9,52.2 713.2,42.0 717.4,75.3 721.7,43.6 726.0,36.4 730.3,41.2 734.6,57.0 738.9,66.0 743.2,65.2 747.5,57.8 751.8,97.2 756.1,105.1 760.4,65.6 764.7,51.0 769.0,48.7 773.3,46.2 777.5,61.4 781.8,59.1 786.1,71.6 790.4,61.4 794.7,66.4 799.0,104.7 803.3,117.1 807.6,114.0 811.9,115.9 816.2,114.2 820.5,112.7 824.8,108.2 829.1,105.3 833.4,113.6 837.7,125.4 841.9,123.1 846.2,117.7 850.5,109.7 854.8,103.2 859.1,115.5 863.4,117.2 867.7,143.9 872.0,159.6"/><text x="52" y="243" font-size="11" fill="#5a6e7b">구간 시작</text><text x="872" y="243" text-anchor="end" font-size="11" fill="#5a6e7b">구간 끝</text></svg><p class="definition">대상 기간: 2021-06-27 00:30:00부터 2021-06-29 00:15:00까지. 곡선의 가로축은 15분 순서다.</p><h3>검증 fold별 MSE</h3><div class="bar-chart"><div class="bar-item"><span>fold 1</span><div class="track"><div style="width:64.8%;background:#2462a9"></div></div><b>48.60</b></div><div class="bar-item"><span>fold 2</span><div class="track"><div style="width:33.8%;background:#2462a9"></div></div><b>25.36</b></div><div class="bar-item"><span>fold 3</span><div class="track"><div style="width:94.0%;background:#2462a9"></div></div><b>70.47</b></div><div class="bar-item"><span>fold 4</span><div class="track"><div style="width:34.6%;background:#2462a9"></div></div><b>25.94</b></div><div class="bar-item"><span>fold 5</span><div class="track"><div style="width:15.6%;background:#2462a9"></div></div><b>11.72</b></div></div><p>검증 평균 MSE 36.419의 표준편차는 20.737이다. 특정 기간의 오차가 평균보다 클 수 있음을 보여준다.</p><h3>구간별 시험 오차</h3><div class="table-scroll"><table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>구간</th>
+      <th>시험 행 수</th>
+      <th>MSE</th>
+      <th>MAE</th>
+      <th>과소예측 비율</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>전체</td>
+      <td>7294</td>
+      <td>60.163</td>
+      <td>4.902</td>
+      <td>0.467</td>
+    </tr>
+    <tr>
+      <td>평일</td>
+      <td>5086</td>
+      <td>73.285</td>
+      <td>5.892</td>
+      <td>0.523</td>
+    </tr>
+    <tr>
+      <td>주말</td>
+      <td>2208</td>
+      <td>29.937</td>
+      <td>2.621</td>
+      <td>0.336</td>
+    </tr>
+    <tr>
+      <td>고전력 ≥ 168</td>
+      <td>1204</td>
+      <td>129.575</td>
+      <td>8.935</td>
+      <td>0.792</td>
+    </tr>
+    <tr>
+      <td>전력 변화 ≥ 20</td>
+      <td>871</td>
+      <td>172.050</td>
+      <td>9.761</td>
+      <td>0.544</td>
+    </tr>
+  </tbody>
+</table></div><p>훈련 정답의 90백분위 168 이상을 분석용 고전력 구간으로 정의했다. 해당 구간의 시험 MSE는 129.575이고 실제보다 낮게 예측한 비율은 79.2%이다. 전력 피크 경보로 바로 사용할 때에는 과소예측을 고려한 경보 임계값과 운영 비용을 별도로 정해야 한다.</p><div class="note caution"><strong>성능 해석의 범위</strong><p>학습 MSE는 8.023으로 시험 MSE보다 낮다. 이는 훈련 표본 적합과 미래 기간 일반화 사이의 차이를 보여준다. 제공 기간은 2021년 9월까지이며 이후 계절·설비 조건에 대한 독립 시험은 없다. 같은 시험 기간을 이전 실험에서도 관찰했으므로 60.163을 완전히 새로운 숨은 시험 점수라고 주장할 수 없다.</p></div></section>
+<section id="reproduction"><span class="section-number">08 · 산출물과 재현 방법</span><h2>입력 CSV부터 저장 모델까지 재현할 수 있다</h2><p>제출 폴더에는 입력 생성 코드, 최종 학습 코드, 보고서 생성 코드, 실제 학습 CSV, 모델 파일과 선택 설정을 함께 둔다. 저장된 모델은 사용자 정의 추론 클래스 없이 scikit-learn/joblib으로 읽을 수 있다.</p><pre><span class="code">python prepare_final_input.py  # 기존 원본·중간 전처리·시간 변수에서 최종 35변수 CSV 생성
+python train_model.py          # 5-fold 재평가 → 최종 학습 → joblib 저장
+python build_report.py         # 저장된 근거 CSV/JSON으로 이 HTML 생성
+python predict.py              # 최종 입력의 시험 행을 사용해 저장 모델 예측 재생
+python research_history/search_candidates.py  # 후보 탐색 재현(시간 소요)</span></pre><p>입력 재생성은 이 프로젝트의 원본 CSV, preprocssed_3 CSV, 5단계의 HS model_ready.csv에 접근한다. <span class="code">final_input_data.csv</span>와 <span class="code">selection.json</span>이 있으면 6단계의 학습 코드는 독립적으로 작동한다. 시험 예측을 재생할 때 정답 <span class="code">전력</span>은 입력 열로 전달하지 않는다.</p><p>환경은 Python 3.13.7, NumPy 2.3.2, pandas 2.3.2, scikit-learn 1.7.1이며, 정확한 패키지 버전은 requirements.txt에 적었다. 최종 입력 CSV SHA-256은 <span class="code">cba030560e19550e65e24efec6773da9129605c66b8fd681b1eb24c36e3fd0f2</span>이다.</p><div class="note"><strong>보고서 근거</strong><p><span class="code">evidence/</span>에 초기 모델, 변수 묶음, 진단, 랜덤 탐색, 국소 탐색, 최종 후보·fold·시험 예측의 CSV/JSON을 함께 보관했다. 보고서 생성 코드는 이 파일을 읽으며 모델을 재학습하거나 지표를 수동으로 입력하지 않는다. <span class="code">research_history/</span>에는 최종 변수 선정에 사용한 27개 단일 후보와 252개 조합을 재현하는 코드와 후보 입력 데이터를 보관했다.</p></div></section>
+<section id="appendix"><span class="section-number">부록 · 후보 전체</span><h2>최종 27개 단일 후보와 탐색 범위</h2><p>이 표는 최종 단계의 27개 단일 모델을 CV MSE 오름차순으로 정리했다. 시험 오차는 후보 선택에 사용하지 않았다.</p><div class="table-scroll tall"><table class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>후보</th>
+      <th>입력 수</th>
+      <th>CV MSE</th>
+      <th>CV 표준편차</th>
+      <th>n_estimators</th>
+      <th>min_samples_leaf</th>
+      <th>min_samples_split</th>
+      <th>max_depth</th>
+      <th>max_features</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>local_4</td>
+      <td>35</td>
+      <td>36.419</td>
+      <td>20.737</td>
+      <td>300</td>
+      <td>3</td>
+      <td>6</td>
+      <td>32</td>
+      <td>1.000</td>
+    </tr>
+    <tr>
+      <td>local_2</td>
+      <td>35</td>
+      <td>37.605</td>
+      <td>22.917</td>
+      <td>300</td>
+      <td>2</td>
+      <td>4</td>
+      <td>32</td>
+      <td>1.000</td>
+    </tr>
+    <tr>
+      <td>local_5</td>
+      <td>35</td>
+      <td>37.735</td>
+      <td>22.562</td>
+      <td>300</td>
+      <td>2</td>
+      <td>6</td>
+      <td>32</td>
+      <td>0.850</td>
+    </tr>
+    <tr>
+      <td>local_7</td>
+      <td>35</td>
+      <td>37.746</td>
+      <td>22.828</td>
+      <td>300</td>
+      <td>2</td>
+      <td>6</td>
+      <td>24</td>
+      <td>1.000</td>
+    </tr>
+    <tr>
+      <td>local_8</td>
+      <td>35</td>
+      <td>37.816</td>
+      <td>22.895</td>
+      <td>500</td>
+      <td>2</td>
+      <td>6</td>
+      <td>32</td>
+      <td>1.000</td>
+    </tr>
+    <tr>
+      <td>BG_clock_std_BGparams</td>
+      <td>35</td>
+      <td>37.901</td>
+      <td>23.214</td>
+      <td>300</td>
+      <td>2</td>
+      <td>6</td>
+      <td>32</td>
+      <td>1.000</td>
+    </tr>
+    <tr>
+      <td>local_6</td>
+      <td>35</td>
+      <td>37.907</td>
+      <td>23.250</td>
+      <td>300</td>
+      <td>2</td>
+      <td>6</td>
+      <td>None</td>
+      <td>1.000</td>
+    </tr>
+    <tr>
+      <td>local_3</td>
+      <td>35</td>
+      <td>38.600</td>
+      <td>22.658</td>
+      <td>300</td>
+      <td>2</td>
+      <td>8</td>
+      <td>32</td>
+      <td>1.000</td>
+    </tr>
+    <tr>
+      <td>BG_clock_BGparams</td>
+      <td>34</td>
+      <td>39.091</td>
+      <td>23.228</td>
+      <td>300</td>
+      <td>2</td>
+      <td>6</td>
+      <td>32</td>
+      <td>1.000</td>
+    </tr>
+    <tr>
+      <td>BG_daily_BGparams</td>
+      <td>30</td>
+      <td>39.415</td>
+      <td>22.852</td>
+      <td>300</td>
+      <td>2</td>
+      <td>6</td>
+      <td>32</td>
+      <td>1.000</td>
+    </tr>
+    <tr>
+      <td>BG_std_BGparams</td>
+      <td>30</td>
+      <td>39.835</td>
+      <td>24.910</td>
+      <td>300</td>
+      <td>2</td>
+      <td>6</td>
+      <td>32</td>
+      <td>1.000</td>
+    </tr>
+    <tr>
+      <td>local_1</td>
+      <td>35</td>
+      <td>40.233</td>
+      <td>26.467</td>
+      <td>300</td>
+      <td>1</td>
+      <td>4</td>
+      <td>32</td>
+      <td>1.000</td>
+    </tr>
+    <tr>
+      <td>BG_short_BGparams</td>
+      <td>30</td>
+      <td>40.415</td>
+      <td>25.318</td>
+      <td>300</td>
+      <td>2</td>
+      <td>6</td>
+      <td>32</td>
+      <td>1.000</td>
+    </tr>
+    <tr>
+      <td>BG_BGparams</td>
+      <td>29</td>
+      <td>40.682</td>
+      <td>25.647</td>
+      <td>300</td>
+      <td>2</td>
+      <td>6</td>
+      <td>32</td>
+      <td>1.000</td>
+    </tr>
+    <tr>
+      <td>BG_daily_HSparams</td>
+      <td>30</td>
+      <td>40.743</td>
+      <td>25.656</td>
+      <td>220</td>
+      <td>1</td>
+      <td>2</td>
+      <td>None</td>
+      <td>1.000</td>
+    </tr>
+    <tr>
+      <td>BG_context_BGparams</td>
+      <td>34</td>
+      <td>42.045</td>
+      <td>25.485</td>
+      <td>300</td>
+      <td>2</td>
+      <td>6</td>
+      <td>32</td>
+      <td>1.000</td>
+    </tr>
+    <tr>
+      <td>BG_clock_HSparams</td>
+      <td>34</td>
+      <td>42.505</td>
+      <td>28.584</td>
+      <td>220</td>
+      <td>1</td>
+      <td>2</td>
+      <td>None</td>
+      <td>1.000</td>
+    </tr>
+    <tr>
+      <td>BG_std_HSparams</td>
+      <td>30</td>
+      <td>42.657</td>
+      <td>28.302</td>
+      <td>220</td>
+      <td>1</td>
+      <td>2</td>
+      <td>None</td>
+      <td>1.000</td>
+    </tr>
+    <tr>
+      <td>BG_HSparams</td>
+      <td>29</td>
+      <td>43.206</td>
+      <td>28.546</td>
+      <td>220</td>
+      <td>1</td>
+      <td>2</td>
+      <td>None</td>
+      <td>1.000</td>
+    </tr>
+    <tr>
+      <td>BG_daily_weekly_BGparams</td>
+      <td>31</td>
+      <td>60.703</td>
+      <td>56.229</td>
+      <td>300</td>
+      <td>2</td>
+      <td>6</td>
+      <td>32</td>
+      <td>1.000</td>
+    </tr>
+    <tr>
+      <td>BG_all_BGparams</td>
+      <td>43</td>
+      <td>61.301</td>
+      <td>59.261</td>
+      <td>300</td>
+      <td>2</td>
+      <td>6</td>
+      <td>32</td>
+      <td>1.000</td>
+    </tr>
+    <tr>
+      <td>BG_weekly_BGparams</td>
+      <td>30</td>
+      <td>64.326</td>
+      <td>61.935</td>
+      <td>300</td>
+      <td>2</td>
+      <td>6</td>
+      <td>32</td>
+      <td>1.000</td>
+    </tr>
+    <tr>
+      <td>BG_power_BGparams</td>
+      <td>33</td>
+      <td>69.622</td>
+      <td>75.137</td>
+      <td>300</td>
+      <td>2</td>
+      <td>6</td>
+      <td>32</td>
+      <td>1.000</td>
+    </tr>
+    <tr>
+      <td>BG_power_HSparams</td>
+      <td>33</td>
+      <td>76.489</td>
+      <td>88.642</td>
+      <td>220</td>
+      <td>1</td>
+      <td>2</td>
+      <td>None</td>
+      <td>1.000</td>
+    </tr>
+    <tr>
+      <td>BG_all_HSparams</td>
+      <td>43</td>
+      <td>80.909</td>
+      <td>96.950</td>
+      <td>220</td>
+      <td>1</td>
+      <td>2</td>
+      <td>None</td>
+      <td>1.000</td>
+    </tr>
+    <tr>
+      <td>HS_BGparams</td>
+      <td>17</td>
+      <td>99.755</td>
+      <td>118.107</td>
+      <td>300</td>
+      <td>2</td>
+      <td>6</td>
+      <td>32</td>
+      <td>1.000</td>
+    </tr>
+    <tr>
+      <td>HS_HSparams</td>
+      <td>17</td>
+      <td>139.736</td>
+      <td>194.652</td>
+      <td>220</td>
+      <td>1</td>
+      <td>2</td>
+      <td>None</td>
+      <td>1.000</td>
+    </tr>
+  </tbody>
+</table></div><h3>선정 규칙과 배포 시 유의점</h3><ul><li>학습 내부 5-fold 평균 MSE가 가장 낮은 단일 후보를 우선 선정했다.</li><li>상위 후보 간 평균이 단일 최선 대비 CV MSE를 최소 0.5% 낮춰야 앙상블을 채택하도록 정했다.</li><li>실제 운영 입력에서 동일 시간대 생산량·기상을 확보할 수 있는지 확인해야 한다.</li><li>전력 분포가 달라지는 기간에서는 새 시간 구간으로 재검증해야 한다.</li></ul></section>
+<footer>2021년 제조공장 전력 예측 · 모델링 결과의 재현 및 제출용 문서 · HTML 내부 그래프는 SVG이며 외부 JS/WebGL이 필요하지 않다.</footer></main></div></body></html>

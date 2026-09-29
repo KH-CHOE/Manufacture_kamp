@@ -1,0 +1,140 @@
+{
+  "selection": {
+    "members": [
+      "local_4"
+    ],
+    "weights": [
+      1.0
+    ],
+    "CV_MSE": 36.41921134703718,
+    "configs": {
+      "local_4": {
+        "features": [
+          "주중여부",
+          "주중공휴일여부",
+          "시간",
+          "현재전력",
+          "생산량",
+          "기온",
+          "풍속",
+          "습도",
+          "강수량",
+          "day",
+          "d",
+          "m",
+          "15분위치",
+          "과거전력_1칸",
+          "과거전력_2칸",
+          "과거전력_4칸",
+          "과거전력_96칸",
+          "전력변화_15분",
+          "전력변화_60분",
+          "최근1시간_전력평균",
+          "최근1시간_전력최대",
+          "과거전력_8칸",
+          "과거전력_16칸",
+          "전력변화_2시간",
+          "전력변화_4시간",
+          "최근2시간_전력평균",
+          "최근2시간_전력최대",
+          "최근4시간_전력평균",
+          "최근4시간_전력최대",
+          "HS_시간_sin",
+          "HS_시간_cos",
+          "HS_요일",
+          "HS_월",
+          "HS_분",
+          "HS_이전1시간표준편차"
+        ],
+        "params": {
+          "n_estimators": 300,
+          "max_features": 1.0,
+          "min_samples_leaf": 3,
+          "min_samples_split": 6,
+          "max_depth": 32,
+          "bootstrap": false,
+          "random_state": 42,
+          "n_jobs": 4
+        }
+      }
+    },
+    "features": [
+      "주중여부",
+      "주중공휴일여부",
+      "시간",
+      "현재전력",
+      "생산량",
+      "기온",
+      "풍속",
+      "습도",
+      "강수량",
+      "day",
+      "d",
+      "m",
+      "15분위치",
+      "과거전력_1칸",
+      "과거전력_2칸",
+      "과거전력_4칸",
+      "과거전력_96칸",
+      "전력변화_15분",
+      "전력변화_60분",
+      "최근1시간_전력평균",
+      "최근1시간_전력최대",
+      "과거전력_8칸",
+      "과거전력_16칸",
+      "전력변화_2시간",
+      "전력변화_4시간",
+      "최근2시간_전력평균",
+      "최근2시간_전력최대",
+      "최근4시간_전력평균",
+      "최근4시간_전력최대",
+      "HS_시간_sin",
+      "HS_시간_cos",
+      "HS_요일",
+      "HS_월",
+      "HS_분",
+      "HS_이전1시간표준편차"
+    ],
+    "selection_rule": "mean chronological 5-fold MSE; blend must improve best single by >=0.5%; test unseen during selection",
+    "best_single": {
+      "candidate": "local_4",
+      "features": 35,
+      "CV_MSE": 36.41921134703718,
+      "CV_MSE_std": 20.736899558828608,
+      "seconds": 11.083173990249634
+    },
+    "best_blend": {
+      "first": "local_4",
+      "second": "local_2",
+      "first_weight": 0.8,
+      "CV_MSE": 36.33127516515553
+    }
+  },
+  "test": {
+    "MSE": 60.16285634989795,
+    "MAE": 4.901605385139126,
+    "R2": 0.9842013473518948
+  },
+  "train": {
+    "MSE": 8.02344176175237,
+    "MAE": 0.57849692992161,
+    "R2": 0.9974824946488171
+  },
+  "peak_threshold_train_q90": 168.0,
+  "peak_test_MSE": 129.5745924828492,
+  "peak_underprediction_rate": 0.792358803986711,
+  "train_rows": 16895,
+  "test_rows": 7294,
+  "input_features": 35,
+  "test_start": "2021-06-27 00:30:00",
+  "test_end": "2021-09-15 00:00:00",
+  "train_end": "2021-06-27 00:00:00",
+  "versions": {
+    "python": "3.13.7",
+    "sklearn": "1.7.1",
+    "pandas": "2.3.2",
+    "numpy": "2.3.2"
+  },
+  "note": "same previously observed holdout; CV tuning estimates optimistic after model selection; no new independent test",
+  "final_input_sha256": "cba030560e19550e65e24efec6773da9129605c66b8fd681b1eb24c36e3fd0f2"
+}
