@@ -146,7 +146,9 @@ B 안에서는 <span class="code">slope4</span>(−0.19)·<span class="code">rng
 <b>다만 대칭이 아닙니다</b> — 추운 쪽은 3.3 kW(15%) 오르는데 더운 쪽은 거의 안 오릅니다.
 <b>이 공장은 난방은 하고 냉방은 거의 안 합니다.</b></p>
 <div class="note caution"><strong>“상관이 생겼다”와 “모델이 좋아진다”는 별개입니다</strong><p>기온 파생의 모델 개선은 −0.13으로 사실상 없습니다. 직전 전력이 이미 그 정보를 담고 있기 때문입니다 — 기저부하가 22.4냐 25.7이냐는 <span class='code'>과거전력_1칸</span>에 그대로 들어 있습니다.</p></div>
-
+<h3>순환신경망에서도 재 봤습니다</h3>
+<div class="table-scroll"><table><thead><tr><th>설정</th><th>전진검증 평균</th><th>기준 대비</th></tr></thead><tbody><tr><td>기준 (달력 6개만)</td><td>67.17</td><td>—</td></tr><tr><td>+ B 전환감지 (트리 생존)</td><td>75.66</td><td>+8.50</td></tr><tr><td>+ 난방도(14)</td><td>69.75</td><td>+2.58</td></tr><tr><td>+ B + 난방도(14)</td><td>78.26</td><td>+11.09</td></tr><tr><td>+ B + 달력정교(D)</td><td>75.26</td><td>+8.09</td></tr></tbody></table></div>
+<p><b>트리에서 유일하게 살았던 B 전환감지가 순환신경망에서는 가장 해롭습니다</b>(+8.49). 이유는 입력 형태입니다 — 순환신경망은 <b>과거 96칸 계열을 그대로</b> 받으므로 <span class='code'>slope4</span>·<span class='code'>rng4</span> 같은 요약은 <b>이미 가진 정보를 다시 주는 것</b>이고, 출력단에 붙는 스칼라라 잡음만 늘립니다. 트리는 계열을 받지 못하니 그 요약이 새 정보였습니다. 기온(난방도)도 +2.58로 해롭습니다. <b>같은 파생변수가 모형 종류에 따라 정반대로 작용합니다.</b></p>
 <div class="note good"><strong>팀에 권하는 것</strong><p><b>slope4 · rng4 · absd4 · is_ramp 네 개를 넣어 보세요</b> — 트리 계열 양쪽에서 유지됩니다.<br><b>나머지는 넣지 마세요</b> — 특히 가동상태·수준대비는 해롭습니다.<br>변수를 늘리는 방향은 이 자료에서 잘 듣지 않습니다. 앞서 확인한 대로 <b>시각 원값</b>(시간·15분위치·분)을 넣는 것이 훨씬 컸습니다(46.58 → 41.75).</p></div>
 </section><section id="s4"><span class="section-number">04 / REPRODUCE</span>
 <h2>재현</h2>
