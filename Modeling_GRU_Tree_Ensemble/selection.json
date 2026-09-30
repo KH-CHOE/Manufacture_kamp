@@ -1,0 +1,85 @@
+{
+  "config": {
+    "features": [
+      "kw_lag1",
+      "kw_lag2",
+      "kw_lag3",
+      "kw_lag4",
+      "kw_lag8",
+      "kw_lag96",
+      "kw_d1",
+      "kw_d2",
+      "kw_roll4",
+      "kw_roll16",
+      "kw_std4",
+      "tod_sin",
+      "tod_cos",
+      "dow",
+      "is_weekend",
+      "is_day_shift",
+      "시간",
+      "15분위치",
+      "전력변화_2시간",
+      "전력변화_4시간",
+      "최근2시간_전력평균",
+      "최근2시간_전력최대",
+      "최근4시간_전력평균",
+      "최근4시간_전력최대",
+      "과거전력_16칸"
+    ],
+    "calendar": [
+      "tod_sin",
+      "tod_cos",
+      "dow_sin",
+      "dow_cos",
+      "is_off",
+      "is_long_shutdown"
+    ],
+    "tree": {
+      "n_estimators": 300,
+      "max_features": 1.0,
+      "min_samples_leaf": 3,
+      "min_samples_split": 6,
+      "max_depth": 32,
+      "bootstrap": false,
+      "random_state": 42,
+      "n_jobs": 2
+    },
+    "gru": {
+      "hidden": 256,
+      "window": 96,
+      "steps": 24,
+      "train_months": 3,
+      "epochs": 200,
+      "patience": 25,
+      "batch": 256,
+      "lr": 0.001
+    },
+    "blend_weight": 0.5
+  },
+  "seeds": [
+    42,
+    2024,
+    7
+  ],
+  "forward_folds": [
+    [
+      20210401,
+      20210425
+    ],
+    [
+      20210501,
+      20210525
+    ],
+    [
+      20210601,
+      20210625
+    ],
+    [
+      20210701,
+      20210725
+    ]
+  ],
+  "selection_rule": "전진검증 4구간 평균 MSE 로 변수·구조·결합을 모두 골랐다. 시험 구간은 선정에 쓰지 않았다. 순환신경망은 시드 3개 예측 평균으로 보고하고, 시험 성적으로 시드를 고르지 않는다.",
+  "blend_rule": "고정 0.5:0.5. 가중치를 역산해 보면 구간마다 최적이 반대 방향이다 — 전진검증 4구간에서는 트리 비중 0.70(그 구간에서 36.51, 고정 반반 37.49), 정병근 시험 구간에서는 0.43(51.90, 고정 반반 52.07)이다. 게다가 시험 앞 20%로 가중치를 학습해 뒤 80%에 적용하면 같은 구간 고정 반반보다 3.9 나쁘다. 작은 이득에 선정 편향을 사지 않는다. **전진검증 수치는 진단이며 가중치 선정에 쓰지 않았다** — 그 4구간으로 가중치를 고르면 같은 구간이 선정에 쓰인 것이 된다. 값의 출처는 reproduction_metadata.json 의 forward_weight_sweep 이고, 행 기준이 서로 다르다(전진검증 23,904행 / 시험 7,104행)."
+}
