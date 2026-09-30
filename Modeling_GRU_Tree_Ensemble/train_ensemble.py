@@ -91,6 +91,7 @@ def main() -> None:
 
     # ── 지문 대조 ── 같은 CSV·같은 설정으로 낸 예측인지 확인한다 (코덱스 리뷰 R6)
     want = hashlib.sha1(w["ts"].astype(str).str.cat(sep="|").encode()).hexdigest()
+    fp_state = "verified" if "fp_ts_sha1" in G else "absent"
     if "fp_ts_sha1" in G:
         got = str(G["fp_ts_sha1"].item())
         if got != want:
@@ -214,11 +215,19 @@ def main() -> None:
     for k in ("tree", "gru", "blend"):
         out[f"pred_{k}"] = t["_pred"][k]
     out.to_csv(HERE / "reproduced_test_predictions.csv", index=False, encoding="utf-8-sig")
+    # 압축해서 담는다 — 압축하지 않으면 135 MB 로 GitHub 파일 상한(100 MB)을 넘는다.
+    # 나무 300개·깊이 32 라 원본이 크다. compress=3 이면 Modeling/ 의 모델과 비슷한 크기다
     joblib.dump({"estimator": t["_model"], "features": cfg["features"]},
-                HERE / "final_tree.joblib")
+                HERE / "final_tree.joblib", compress=3)
     (HERE / "reproduction_metadata.json").write_text(json.dumps({
         "config": cfg, "seeds": sel["seeds"], "split_day": split_day,
         "rows_total": len(d), "rows_window_valid": len(w),
+        "ts_sha1": want,
+        "gru_predictions_fingerprint": fp_state,
+        "gru_predictions_note": (
+            "verified = npz 의 시각축 지문이 이 CSV 와 일치함을 확인했다. "
+            "absent = 지문을 심기 전에 만든 npz 다. 평가 행 위치(idx_*)는 전부 대조했으나 "
+            "자료 자체가 같은지는 확인하지 못했다 — 다시 학습하면 verified 가 된다"),
         "forward": avg,
         "forward_weight_sweep": sweep,
         "forward_folds": [{"fold": f["label"], "rows": f["rows"], "tree": f["tree"],

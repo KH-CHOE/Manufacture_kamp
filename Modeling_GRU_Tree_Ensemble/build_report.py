@@ -44,6 +44,10 @@ def table(rows, head, hi=None, left=(0,)):
             f'<tbody>{"".join(tr)}</tbody></table></div>')
 
 
+def code(t):
+    return f'<span class="code">{t}</span>'
+
+
 def note(title, body, kind=""):
     k = f" {kind}" if kind else ""
     return f'<div class="note{k}"><strong>{title}</strong><p>{body}</p></div>'
@@ -195,6 +199,22 @@ def main() -> None:
         fold_rows.append(["<b>평균</b>", f"<b>{n(fwd['tree'])}</b>", f"<b>{n(fwd['gru'])}</b>",
                           f"<b>{n(fwd['blend'])}</b>",
                           f"<b>{fwd['blend'] - fwd['tree']:+.2f}</b>", ""])
+    import statistics as _st
+    _gains = [f["tree"]["MSE"] - f["blend"]["MSE"] for f in folds] if folds else []
+    gain_note = ""
+    if len(_gains) >= 2:
+        _m, _sd = _st.fmean(_gains), _st.pstdev(_gains)
+        gain_note = note(
+            "이득이 구간 산포보다 작습니다 — 과하게 읽지 마세요",
+            f"구간별 이득이 " + " · ".join(f"{g:+.2f}" for g in _gains)
+            + f" 이고 평균 <b>{_m:+.2f}</b> · 표준편차 <b>{_sd:.2f}</b> 입니다. "
+            "<b>평균 이득이 표준편차보다 작습니다.</b> 구간이 4개뿐이라 "
+            "이 이득 자체가 확실하다고 말할 수 없습니다. "
+            "관문을 넘었다는 뜻은 <b>시험 구간에서만 나던 이득이 아니라는 것</b>까지이고, "
+            "이득의 크기를 주장하는 것은 아닙니다. "
+            f"시험 구간 이득({meta['test']['tree']['MSE'] - meta['test']['blend']['MSE']:+.2f})은 "
+            "훨씬 크지만 그 구간은 선정에 쓸 수 없습니다.",
+            kind="bad")
     sw = meta.get("forward_weight_sweep")
     wt_rows = [["고정 0.5 : 0.5 <b>(채택)</b>", "—",
                 "선정에 시험·전진검증 어느 쪽도 쓰지 않는다"]]
@@ -214,7 +234,7 @@ def main() -> None:
     ]
     weight_table = table(wt_rows, ["방식", "가중치", "결과"], hi=0, left=(0, 1, 2))
     s3 = f"""<section id="s3"><span class="section-number">03 / ENSEMBLE</span>
-<h2>앙상블 — 전진검증 관문을 통과했습니다</h2>
+<h2>앙상블 — 전진검증에서도 이득이 나옵니다(작지만)</h2>
 <p>앙상블 수치를 <b>시험 구간에서만</b> 재면 선정 근거로 쓸 수 없습니다.
 그래서 선정 기준인 전진검증 4구간에서 구간마다 트리와 GRU를 각각 학습해 섞었습니다.</p>
 {table(fold_rows, ["구간", "트리", "GRU", "앙상블", "이득", "행수"],
@@ -224,6 +244,7 @@ def main() -> None:
  "잃는 구간은 트리가 이미 잘 맞히는 곳입니다. 즉 <b>평균적으로 이기고 최악을 줄입니다.</b> "
  "실전에서 다음 구간이 쉬울지 어려울지 미리 알 수 없으므로, 그것이 오히려 원하는 성질입니다.",
  "good")}
+{gain_note}
 <h3>시험 구간</h3>
 {table([["트리 (ExtraTrees)", n(t["tree"]["MSE"], 3), n(t["tree"]["RMSE"], 3),
          n(t["tree"]["MAE"], 3), n(t["tree"]["R2"], 4)],
@@ -253,10 +274,21 @@ def main() -> None:
             bold = "앙상블" in nm or "반반" in nm
             rank_rows.append([f"{i}", f"<b>{esc(nm)}</b>" if bold else esc(nm),
                               f"<b>{n(r['평균'])}</b>" if bold else n(r["평균"])])
+    _rows = rank["행수"] if rank else 0
+    basis_note = note(
+        "이 표는 이 폴더가 낸 수치가 아닙니다 — 행 기준이 다릅니다",
+        f"아래 순위는 <b>선정 실험의 {_rows:,}행</b> 기준입니다. 이 폴더의 코드는 "
+        f"<b>{meta['rows_window_valid']:,}행</b>(시험 {meta['test_rows']:,}행)에서 "
+        "돌았고, 위 02·03 절의 수치가 그것입니다. 같은 모형이라도 행 기준이 다르면 "
+        "값이 달라지므로 <b>두 표를 나란히 비교하지 마세요.</b> 순위표는 후보들 사이의 "
+        "상대 순서를 보여주는 용도이고, 이 폴더의 성능은 "
+        + code("reproduction_metadata.json") + " 에서 읽어야 합니다.",
+        kind="bad")
     s4 = f"""<section id="s4"><span class="section-number">04 / RANKING</span>
 <h2>같은 행 기준 전체 순위</h2>
 <p>행 기준이 다른 수치를 섞으면 안 되므로, 후보 전부를
 <b>{rank['행수'] if rank else 0:,}행 하나</b>에서 다시 쟀습니다.</p>
+{basis_note}
 {table(rank_rows, ["", "후보", "전진검증 평균"], hi=0, left=(0, 1))}
 {note("행 기준 주의",
  "이 저장소 안에 시험 행수가 여럿 있습니다 — "
@@ -274,9 +306,11 @@ def main() -> None:
                          f"{-fam['전부_추가']['개선']:+.2f}"])
     gru_rows = []
     if gruf:
-        gb = gruf["기준"]
-        gru_rows = [[k, n(v), "—" if k.startswith("기준") else f"{v - gb:+.2f}"]
-                    for k, v in gruf["판"].items()]
+        # `판` 의 값은 숫자가 아니라 dict 다 — `평균`·`기준 대비` 를 꺼내 쓴다
+        for k, v in gruf["판"].items():
+            base = k.startswith("기준")
+            gru_rows.append([k, n(v["평균"]),
+                             "—" if base else f"{v['기준 대비']:+.2f}"])
     s5 = f"""<section id="s5"><span class="section-number">05 / WHAT FAILED</span>
 <h2>안 된 것 — 기록해 둡니다</h2>
 <p>분석에서 나온 사실마다 파생변수를 만들어 23개를 6묶음으로 나눠 시험했습니다.
