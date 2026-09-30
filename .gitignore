@@ -1,0 +1,15 @@
+# 시스템 / 파이썬
+.DS_Store
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# 환경
+.venv/
+.env
+
+# 로컬 예측 산출물 (스크립트로 재생성)
+**/prediction_replay.csv
+
+# 중간 산출물 — train_gru_part.py 가 만들고 train_ensemble.py 가 소비한다
+**/_gru_predictions.npz
