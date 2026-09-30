@@ -65,9 +65,29 @@
   "split_day": 20210627,
   "rows_total": 24189,
   "rows_window_valid": 23904,
-  "ts_sha1": "e2509a4df6f1ad0d3449bbb98eb16b40df4880cb",
+  "data_sha1": "8070939fc0b60cf969c2f3b0b63ebb9ee1c9884a",
+  "config_sha1": "620db6697881e2e627466e1f04aa1ba8d80ddca5",
   "gru_predictions_fingerprint": "absent",
-  "gru_predictions_note": "verified = npz 의 시각축 지문이 이 CSV 와 일치함을 확인했다. absent = 지문을 심기 전에 만든 npz 다. 평가 행 위치(idx_*)는 전부 대조했으나 자료 자체가 같은지는 확인하지 못했다 — 다시 학습하면 verified 가 된다",
+  "gru_fingerprint_now": {
+    "data_sha1": "8070939fc0b60cf969c2f3b0b63ebb9ee1c9884a",
+    "config_sha1": "620db6697881e2e627466e1f04aa1ba8d80ddca5",
+    "rows": 23904,
+    "columns": [
+      "ts",
+      "split",
+      "kW",
+      "y",
+      "tod_sin",
+      "tod_cos",
+      "dow_sin",
+      "dow_cos",
+      "is_off",
+      "is_long_shutdown"
+    ],
+    "ts_first": "2021-01-02 23:45:00",
+    "ts_last": "2021-09-14 23:30:00"
+  },
+  "gru_predictions_note": "verified = npz 의 자료 지문(ts·split·kW·y·달력 전 열의 값)과 설정 지문이 이 CSV·이 설정과 일치함을 확인했다. ts_only = 시각축만 담은 옛 지문이라 값·분할·설정은 확인하지 못했다. absent = 지문이 없는 npz 다 — 평가 행 위치(idx_*)만 대조했다. 둘 다 다시 학습하면 verified 가 된다",
   "forward": {
     "tree": 39.017,
     "gru": 49.301,
@@ -172,8 +192,8 @@
       "fold": "20210401",
       "rows": 2304,
       "tree": {
-        "MSE": 59.755312101680325,
-        "RMSE": 7.730156020526385,
+        "MSE": 59.75531210168034,
+        "RMSE": 7.730156020526387,
         "MAE": 5.429678767800567,
         "R2": 0.9805677054292203
       },
@@ -184,8 +204,8 @@
         "R2": 0.9767186610841868
       },
       "blend": {
-        "MSE": 55.25583441337775,
-        "RMSE": 7.433426828413511,
+        "MSE": 55.25583441337774,
+        "RMSE": 7.43342682841351,
         "MAE": 5.181579821960845,
         "R2": 0.9820309255644439
       }

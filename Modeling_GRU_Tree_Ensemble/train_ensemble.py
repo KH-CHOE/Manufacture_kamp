@@ -64,6 +64,42 @@ def score(y, p):
             "R2": float(1 - (e ** 2).sum() / ((y - y.mean()) ** 2).sum())}
 
 
+def data_fingerprint(w, cfg, sel) -> dict:
+    """순환신경망이 **실제로 쓰는 값 전부**와 학습 설정을 지문으로 만든다.
+
+    예전에는 시각축(`ts`)의 sha1 만 비교했다. 그래서 시각만 같고 `kW` 에 1,000 을 더하거나
+    `tod_sin` 을 0 으로 바꾼 자료로도 `verified` 가 나왔다(2차 리뷰 S2).
+    설정도 저장만 하고 대조하지 않아 은닉 999·시드 [999] 짜리 예측이 통과했다.
+
+    이제 **값·순서·분할·설정을 모두** 넣는다. 부동소수는 표기 차이로 지문이 흔들리지
+    않도록 소수 6자리로 고정해 직렬화한다.
+    """
+    cols = ["ts", "split", "kW", "y"] + list(cfg["calendar"])
+    missing = [c for c in cols if c not in w.columns]
+    if missing:
+        raise SystemExit(f"지문에 필요한 열이 없다: {missing}")
+    parts = []
+    for c in cols:
+        s = w[c]
+        if s.dtype.kind in "fc":
+            parts.append(c + "=" + "|".join(f"{v:.6f}" for v in s.to_numpy(float)))
+        else:
+            parts.append(c + "=" + "|".join(s.astype(str)))
+    cfgsig = json.dumps({"gru": cfg["gru"], "calendar": list(cfg["calendar"]),
+                         "seeds": list(sel["seeds"]),
+                         "forward_folds": sel["forward_folds"]},
+                        sort_keys=True, ensure_ascii=False)
+    return {
+        "data_sha1": hashlib.sha1("\n".join(parts).encode()).hexdigest(),
+        "config_sha1": hashlib.sha1(cfgsig.encode()).hexdigest(),
+        "config_json": cfgsig,
+        "rows": int(len(w)),
+        "columns": cols,
+        "ts_first": str(w["ts"].iloc[0]),
+        "ts_last": str(w["ts"].iloc[-1]),
+    }
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--input", type=Path, default=HERE / "ensemble_input_data.csv")
@@ -89,25 +125,29 @@ def main() -> None:
     print(f"트리 {len(cfg['features'])}변수 · 결합 {bw}:{1 - bw} "
           f"· 순환신경망 예측은 {a.gru.name} 에서 읽는다")
 
-    # ── 지문 대조 ── 같은 CSV·같은 설정으로 낸 예측인지 확인한다 (코덱스 리뷰 R6)
-    want = hashlib.sha1(w["ts"].astype(str).str.cat(sep="|").encode()).hexdigest()
-    fp_state = "verified" if "fp_ts_sha1" in G else "absent"
-    if "fp_ts_sha1" in G:
-        got = str(G["fp_ts_sha1"].item())
-        if got != want:
-            raise SystemExit(
-                f"지문 불일치 — {a.gru.name} 은 다른 자료로 낸 예측이다.\n"
-                f"  이 CSV 의 시각축 sha1 {want[:12]} · 예측 파일 {got[:12]}\n"
-                f"  예측 파일 기준 {int(G['fp_rows'])}행 "
-                f"({str(G['fp_ts_first'].item())} ~ {str(G['fp_ts_last'].item())})\n"
-                f"  train_gru_part.py 를 이 CSV 로 다시 돌려라")
-        print(f"지문 일치 — 시각축 sha1 {want[:12]} · {int(G['fp_rows']):,}행")
-        if "fp_config" in G:
-            print(f"  예측 설정 {str(G['fp_config'].item())}")
+    # ── 지문 대조 ── 같은 자료·같은 설정으로 낸 예측인지 확인한다 (2차 리뷰 S2)
+    fp = data_fingerprint(w, cfg, sel)
+    if "fp_data_sha1" in G:
+        for key, label in (("data_sha1", "자료"), ("config_sha1", "설정")):
+            got, wantv = str(G[f"fp_{key}"].item()), fp[key]
+            if got != wantv:
+                raise SystemExit(
+                    f"지문 불일치({label}) — {a.gru.name} 은 다른 {label}로 낸 예측이다.\n"
+                    f"  지금 {wantv[:12]} · 예측 파일 {got[:12]}\n"
+                    f"  예측 파일 설정: {str(G.get('fp_config_json', np.array('?')).item())[:200]}\n"
+                    f"  train_gru_part.py 를 이 CSV·이 설정으로 다시 돌려라")
+        print(f"지문 일치 — 자료 {fp['data_sha1'][:12]} · 설정 {fp['config_sha1'][:12]}"
+              f" · {fp['rows']:,}행 · 열 {len(fp['columns'])}개")
+        fp_state = "verified"
+    elif "fp_ts_sha1" in G:
+        fp_state = "ts_only"
+        print(f"주의 — {a.gru.name} 은 **시각축만** 담은 옛 지문이다.\n"
+              f"  값·분할·설정이 같은지는 확인할 수 없다. 다시 학습하면 전체 지문이 된다.")
     else:
+        fp_state = "absent"
         print(f"주의 — {a.gru.name} 에 지문이 없다(지문을 심기 전에 만든 파일이다).\n"
               f"  평가 행 위치(idx_*)는 대조하지만 **자료 자체가 같은지는 확인할 수 없다.**\n"
-              f"  이 CSV 의 시각축 sha1 {want[:12]} · 창 유효 {len(w):,}행")
+              f"  지금 자료 지문 {fp['data_sha1'][:12]} · 창 유효 {len(w):,}행")
     print()
 
     def run(split, hi, label, keep=False, keep_pred=False):
@@ -222,12 +262,16 @@ def main() -> None:
     (HERE / "reproduction_metadata.json").write_text(json.dumps({
         "config": cfg, "seeds": sel["seeds"], "split_day": split_day,
         "rows_total": len(d), "rows_window_valid": len(w),
-        "ts_sha1": want,
+        "data_sha1": fp["data_sha1"],
+        "config_sha1": fp["config_sha1"],
         "gru_predictions_fingerprint": fp_state,
+        "gru_fingerprint_now": {k: v for k, v in fp.items() if k != "config_json"},
         "gru_predictions_note": (
-            "verified = npz 의 시각축 지문이 이 CSV 와 일치함을 확인했다. "
-            "absent = 지문을 심기 전에 만든 npz 다. 평가 행 위치(idx_*)는 전부 대조했으나 "
-            "자료 자체가 같은지는 확인하지 못했다 — 다시 학습하면 verified 가 된다"),
+            "verified = npz 의 자료 지문(ts·split·kW·y·달력 전 열의 값)과 설정 지문이 "
+            "이 CSV·이 설정과 일치함을 확인했다. "
+            "ts_only = 시각축만 담은 옛 지문이라 값·분할·설정은 확인하지 못했다. "
+            "absent = 지문이 없는 npz 다 — 평가 행 위치(idx_*)만 대조했다. "
+            "둘 다 다시 학습하면 verified 가 된다"),
         "forward": avg,
         "forward_weight_sweep": sweep,
         "forward_folds": [{"fold": f["label"], "rows": f["rows"], "tree": f["tree"],
