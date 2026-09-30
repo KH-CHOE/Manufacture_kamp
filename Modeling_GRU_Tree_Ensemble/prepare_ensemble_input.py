@@ -37,7 +37,7 @@ HOLIDAYS = ["2021-01-01", "2021-02-11", "2021-02-12", "2021-02-13", "2021-03-01"
 LONG_SHUTDOWNS = [("2021-01-01", "2021-01-03"), ("2021-02-11", "2021-02-14"),
                   ("2021-07-31", "2021-08-08")]
 
-# 트리에 주는 26변수
+# 트리에 주는 25변수
 FEATS = [
     # 시차값 (1주 전은 제외 — 실험에서 해로웠다)
     "kw_lag1", "kw_lag2", "kw_lag3", "kw_lag4", "kw_lag8", "kw_lag96",
@@ -94,8 +94,12 @@ def build(raw: pd.DataFrame) -> pd.DataFrame:
         d[f"kw_lag{n}"] = s.shift(n - 1)               # lag1 = 예측 시점 관측값
     # 정병근 `과거전력_N칸` 은 원계열[ts − N칸] 이다. 그의 정의에 맞춘다
     d["과거전력_16칸"] = s.shift(16)
-    d["kw_d1"] = s.diff()
-    d["kw_d2"] = s.diff(2)
+    d["kw_d1"] = s.diff()                              # k[t] − k[t−1]
+    # **선정 실험(analysis/power15.py:87)의 정의에 맞춘다.**
+    # 여기 있던 s.diff(2) 는 k[t] − k[t−2] 로, 24,000행 중 19,162행이 어긋났다.
+    # 기준은 `kw_lag2 − kw_lag3` = k[t−1] − k[t−2] — **직전 걸음의 첫차분**이다.
+    # kw_d1 과 짝을 이뤄 '지금 기울기'와 '한 걸음 전 기울기'를 준다.
+    d["kw_d2"] = d["kw_lag2"] - d["kw_lag3"]           # k[t−1] − k[t−2]
     d["kw_roll4"] = s.rolling(4).mean()
     d["kw_roll16"] = s.rolling(16).mean()
     d["kw_std4"] = s.rolling(4).std()
@@ -107,11 +111,16 @@ def build(raw: pd.DataFrame) -> pd.DataFrame:
     d["15분위치"] = idx.minute // STEP_MIN
     d["tod_sin"] = np.sin(2 * np.pi * tod / PER_DAY)
     d["tod_cos"] = np.cos(2 * np.pi * tod / PER_DAY)
-    d["dow"] = dw
+    # 기준(power15.py:97)은 월=1 … 일=7 이다. 트리에는 상수 이동이라 분기가 같지만
+    # 대조가 가능하도록 맞춘다. **dow_sin/cos 는 0기반 그대로 둔다** —
+    # Modeling_RNN 과 같아야 하고 순환신경망 입력이라 위상을 바꾸면 값이 달라진다.
+    d["dow"] = dw + 1
     d["dow_sin"] = np.sin(2 * np.pi * dw / 7)
     d["dow_cos"] = np.cos(2 * np.pi * dw / 7)
     d["is_weekend"] = (dw >= 5).astype(int)
-    d["is_day_shift"] = ((idx.hour >= 8) & (idx.hour < 20)).astype(int)
+    # 선정 실험(power15.py:99)은 9~17시(양끝 포함)다. 여기 있던 8~19시는
+    # 24,000행 중 3,000행이 달랐다. 어느 쪽이 옳다는 근거가 없으므로 기준을 따른다.
+    d["is_day_shift"] = ((idx.hour >= 9) & (idx.hour <= 17)).astype(int)
     hol = pd.to_datetime(HOLIDAYS).normalize()
     d["is_off"] = ((dw >= 5) | idx.normalize().isin(hol)).astype(int)
     shut = np.zeros(len(d), int)
@@ -132,7 +141,7 @@ def build(raw: pd.DataFrame) -> pd.DataFrame:
     return d
 
 
-def main() -> None:
+def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--raw", type=Path, required=True)
     ap.add_argument("--verify", type=Path, default=None,
@@ -146,15 +155,19 @@ def main() -> None:
     d = build(raw)
 
     if a.verify and a.verify.exists():
+        # **대조만 하고 파일은 쓰지 않는다.** 예전에는 대조 뒤에도 저장으로 넘어가서,
+        # `--align` 없이 `--verify` 만 돌리면 정렬본 CSV(24,190행)를 비정렬본(24,671행)으로
+        # 조용히 덮어썼다. 그러면 `_gru_predictions.npz` 와 행수가 어긋나 결합이 깨진다.
         bg = pd.read_csv(a.verify)
         bg["ts"] = pd.to_datetime(bg["forecast_time"]) - pd.Timedelta(minutes=15)
         m = d.merge(bg, on="ts", how="inner", suffixes=("", "_bg"))
         print(f"대조 — 공통 {len(m):,}행")
-        bad = []
+        bad, skipped = [], []
         for ours, theirs in VERIFY_MAP.items():
             col = theirs if theirs not in m.columns or theirs != ours else theirs + "_bg"
             if col not in m.columns:
-                print(f"  ? {ours:18} 상대 열 없음")
+                skipped.append(ours)
+                print(f"  ? {ours:18} 상대 열 없음 — 이 검사로는 확인 못 함")
                 continue
             diff = (m[ours].astype(float) - m[col].astype(float)).abs()
             n = int((diff > 1e-6).sum())
@@ -163,6 +176,18 @@ def main() -> None:
             if n:
                 bad.append(ours)
         print(f"  → {'전부 일치' if not bad else f'불일치 {bad}'}")
+        # 이 검사가 덮는 것은 정병근 CSV 에 대응 이름이 있는 변수뿐이다.
+        # 나머지는 `analysis/verify_pkg_vs_power15.py` 가 선정 실험 정의와 대조한다.
+        # 두 검사를 합쳐야 트리 25변수 전부가 덮인다 — 코덱스 리뷰 R1 의 지적이다.
+        checked = [k for k in VERIFY_MAP if k not in skipped]
+        print(f"  이 검사가 덮은 변수 {len(checked)}/{len(FEATS)}개."
+              f" 나머지는 analysis/verify_pkg_vs_power15.py 가 본다")
+        if skipped:
+            print(f"  대응 열이 없어 건너뛴 것: {', '.join(skipped)}")
+        if bad:
+            print("\n판정: 실패 — 값이 어긋나면 이 CSV 로 낸 수치를 신뢰할 수 없다")
+            return 1
+        return 0
 
     d = d[d["y"].notna()].copy()
     if a.align and a.align.exists():
@@ -183,7 +208,8 @@ def main() -> None:
     print(f"\n저장: {a.output.name}  {len(out):,}행 × {len(cols)}열")
     print(f"  분할 {out['split'].value_counts().to_dict()}")
     print(f"  트리 변수 {len(FEATS)}개 · 순환신경망 달력 {len(CAL)}개")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

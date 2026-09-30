@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 
@@ -137,6 +138,18 @@ def main() -> None:
         out[f"eps_{label}"] = np.array(eps)
         print(f"  {label:>6} MSE {float(((Y[ei] - out[f'pred_{label}']) ** 2).mean()):8.3f}"
               f" · 에폭 {eps}", flush=True)
+
+    # 지문 — 어느 CSV·어느 설정으로 낸 예측인지 남긴다. `train_ensemble.py` 가 대조한다.
+    # 없으면 길이와 행 위치만 맞춰 보게 되고, 자료 자체가 바뀐 경우를 못 잡는다.
+    ts_txt = w["ts"].astype(str).str.cat(sep="|")
+    out["fp_ts_sha1"] = np.array(hashlib.sha1(ts_txt.encode()).hexdigest())
+    out["fp_rows"] = np.array(len(w))
+    out["fp_ts_first"] = np.array(str(w["ts"].iloc[0]))
+    out["fp_ts_last"] = np.array(str(w["ts"].iloc[-1]))
+    out["fp_config"] = np.array(json.dumps(
+        {"hidden": g["hidden"], "window": g["window"], "steps": g["steps"],
+         "train_months": g["train_months"], "seeds": sel["seeds"],
+         "calendar": cfg["calendar"]}, sort_keys=True, ensure_ascii=False))
 
     np.savez(a.output, **out)
     if first_net is not None:

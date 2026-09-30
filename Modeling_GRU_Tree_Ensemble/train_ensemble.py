@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import gc
+import hashlib
 import json
 import platform
 from pathlib import Path
@@ -86,9 +87,29 @@ def main() -> None:
     bw = cfg["blend_weight"]
     print(f"{len(d):,}행 → 창 유효 {len(w):,}행 (불연속 창 제외)")
     print(f"트리 {len(cfg['features'])}변수 · 결합 {bw}:{1 - bw} "
-          f"· 순환신경망 예측은 {a.gru.name} 에서 읽는다\n")
+          f"· 순환신경망 예측은 {a.gru.name} 에서 읽는다")
 
-    def run(split, hi, label, keep=False):
+    # ── 지문 대조 ── 같은 CSV·같은 설정으로 낸 예측인지 확인한다 (코덱스 리뷰 R6)
+    want = hashlib.sha1(w["ts"].astype(str).str.cat(sep="|").encode()).hexdigest()
+    if "fp_ts_sha1" in G:
+        got = str(G["fp_ts_sha1"].item())
+        if got != want:
+            raise SystemExit(
+                f"지문 불일치 — {a.gru.name} 은 다른 자료로 낸 예측이다.\n"
+                f"  이 CSV 의 시각축 sha1 {want[:12]} · 예측 파일 {got[:12]}\n"
+                f"  예측 파일 기준 {int(G['fp_rows'])}행 "
+                f"({str(G['fp_ts_first'].item())} ~ {str(G['fp_ts_last'].item())})\n"
+                f"  train_gru_part.py 를 이 CSV 로 다시 돌려라")
+        print(f"지문 일치 — 시각축 sha1 {want[:12]} · {int(G['fp_rows']):,}행")
+        if "fp_config" in G:
+            print(f"  예측 설정 {str(G['fp_config'].item())}")
+    else:
+        print(f"주의 — {a.gru.name} 에 지문이 없다(지문을 심기 전에 만든 파일이다).\n"
+              f"  평가 행 위치(idx_*)는 대조하지만 **자료 자체가 같은지는 확인할 수 없다.**\n"
+              f"  이 CSV 의 시각축 sha1 {want[:12]} · 창 유효 {len(w):,}행")
+    print()
+
+    def run(split, hi, label, keep=False, keep_pred=False):
         tr = w[w["date_key"] < split]
         te_m = (day >= split) if hi is None else ((day >= split) & (day < hi))
         te = w[te_m]
@@ -98,15 +119,26 @@ def main() -> None:
         tree = p.predict(te[cfg["features"]])
         if not keep:
             del p
-            gc.collect()
+            gc.collect()      # 구간마다 버린다 — 5판을 들고 있으면 메모리가 모자란다
         gru = G[f"pred_{label}"]
         y = te["y"].to_numpy()
         assert len(gru) == len(y), f"{label}: 길이 불일치 {len(gru)} vs {len(y)} — 창 규칙 확인"
+        # **길이만 맞추면 안 된다.** 길이가 같은 오래된 예측 파일이 섞이면 조용히
+        # 다른 행과 결합된다. 코덱스 리뷰 R6 의 지적이다.
+        # `idx_*` 는 창 유효 프레임 w 안의 정수 위치다 — 그 위치까지 같은지 본다.
+        ei_here = np.where(te_m)[0]
+        ei_saved = G[f"idx_{label}"]
+        assert np.array_equal(ei_here, ei_saved), (
+            f"{label}: 평가 행 위치가 다르다 — 이 CSV 와 {a.gru.name} 이 짝이 아니다. "
+            f"길이는 {len(ei_here)} 로 같지만 첫 어긋난 위치 "
+            f"{int(np.argmax(ei_here != ei_saved)) if len(ei_here) == len(ei_saved) else 'n/a'}. "
+            f"train_gru_part.py 를 이 CSV 로 다시 돌려라")
         blend = bw * tree + (1 - bw) * gru
         r = {"label": label, "rows": len(y), "epochs": G[f"eps_{label}"].tolist(),
              "tree": score(y, tree), "gru": score(y, gru), "blend": score(y, blend)}
-        if keep:
+        if keep or keep_pred:
             r["_pred"] = {"y": y, "tree": tree, "gru": gru, "blend": blend}
+        if keep:
             r["_te"] = te
             r["_model"] = p
         return r
@@ -116,7 +148,7 @@ def main() -> None:
     for lo, hi in sel["forward_folds"]:
         if (day < lo).sum() < 1500 or f"pred_{lo}" not in G:
             continue
-        r = run(lo, hi, str(lo))
+        r = run(lo, hi, str(lo), keep_pred=True)
         folds.append(r)
         print(f"  {str(lo)[4:]:>7}{r['tree']['MSE']:>9.2f}{r['gru']['MSE']:>9.2f}"
               f"{r['blend']['MSE']:>9.2f}{r['rows']:>8}", flush=True)
@@ -125,6 +157,38 @@ def main() -> None:
     if avg:
         print(f"\n  전진검증 평균 — 트리 {avg['tree']} · GRU {avg['gru']} · "
               f"앙상블 {avg['blend']}  (이득 {avg['tree'] - avg['blend']:+.2f})\n")
+
+    # ── 가중치 훑기 ── **진단이다. 여기서 가중치를 고르지 않는다.**
+    # 왜 재는가: README·보고서에 "전진검증 최적 0.69 / 31.06" 이 적혀 있었는데
+    # 어떤 결과 파일에도 없는 수치였다(코덱스 리뷰 R10). 근거 없는 숫자를 지우는 대신
+    # 실제로 재서 출처를 만든다. 설계는 고정 0.5 그대로다 —
+    # 전진검증으로 가중치를 고르면 그 4구간이 선정에 쓰인 것이 되고,
+    # 시험 구간 최적(0.425)과 방향이 반대라 어느 쪽으로도 일반화되지 않는다.
+    sweep = None
+    if folds:
+        grid = np.round(np.arange(0.0, 1.001, 0.05), 2)
+        per_w = []
+        for wgt in grid:
+            ms = [float(np.mean((f["_pred"]["y"]
+                                 - (wgt * f["_pred"]["tree"]
+                                    + (1 - wgt) * f["_pred"]["gru"])) ** 2))
+                  for f in folds]
+            per_w.append((float(wgt), round(float(np.mean(ms)), 3)))
+        best_w, best_mse = min(per_w, key=lambda t_: t_[1])
+        half = dict(per_w)[0.5]
+        sweep = {"grid": per_w, "best_weight": best_w, "best_MSE": best_mse,
+                 "fixed_half_MSE": half,
+                 "gain_of_tuning": round(half - best_mse, 3),
+                 "판정": ("고정 0.5 를 유지한다. 최적으로 바꿔 얻는 이득은 "
+                        f"{half - best_mse:.2f} 인데, 그 최적은 이 4구간에서 역산한 값이라 "
+                        "그만큼 선정 편향을 산다. 시험 구간 최적(0.425)과 방향도 반대다"),
+                 "주의": "이 표는 진단이며 가중치 선정에 쓰지 않았다"}
+        print(f"  가중치 훑기(진단) — 전진검증 최적 {best_w:.2f} 에서 {best_mse:.2f}, "
+              f"고정 0.5 는 {half:.2f} (차이 {half - best_mse:+.2f})")
+        print(f"  → 고정 0.5 를 유지한다. 최적은 이 4구간에서 역산한 값이다\n")
+    for f in folds:
+        f.pop("_pred", None)
+    gc.collect()
 
     t = run(split_day, None, "test", keep=True)
     print(f"  시험 구간 {t['rows']:,}행")
@@ -156,6 +220,7 @@ def main() -> None:
         "config": cfg, "seeds": sel["seeds"], "split_day": split_day,
         "rows_total": len(d), "rows_window_valid": len(w),
         "forward": avg,
+        "forward_weight_sweep": sweep,
         "forward_folds": [{"fold": f["label"], "rows": f["rows"], "tree": f["tree"],
                            "gru": f["gru"], "blend": f["blend"]} for f in folds],
         "test": {k: t[k] for k in ("tree", "gru", "blend")},
