@@ -55,6 +55,8 @@ CAL = ["tod_sin", "tod_cos", "dow_sin", "dow_cos", "is_off", "is_long_shutdown"]
 # 대조할 이름 대응 (우리 이름 → 정병근 이름)
 # 우리 `kw_lagN` 은 그의 `과거전력_(N−1)칸` 에 대응한다(우리 lag1 == 그의 현재전력).
 # 이름이 어긋나 혼동하기 쉬우므로 대조표에는 정의가 같은 것만 넣는다.
+# 기준 CSV 에 원래 대응 열이 없는 것 — 이것만 건너뛰기를 허용한다
+NO_COUNTERPART = {"kw_lag4"}
 VERIFY_MAP = {"kw_lag1": "현재전력", "kw_lag2": "과거전력_1칸", "kw_lag4": "과거전력_3칸",
               "시간": "시간", "15분위치": "15분위치",
               "전력변화_2시간": "전력변화_2시간", "전력변화_4시간": "전력변화_4시간",
@@ -141,6 +143,11 @@ def build(raw: pd.DataFrame) -> pd.DataFrame:
     return d
 
 
+def fail(msg: str) -> int:
+    print(f"\n✗ {msg}")
+    return 1
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--raw", type=Path, required=True)
@@ -151,10 +158,19 @@ def main() -> int:
     ap.add_argument("--output", type=Path, default=HERE / "ensemble_input_data.csv")
     a = ap.parse_args()
 
+    # **지정한 기준 파일이 없으면 즉시 멈춘다.** 예전에는 `a.verify.exists()` 가 거짓이면
+    # 검사를 건너뛰고 저장으로 넘어갔다. 그래서 경로 오타 하나로 검사를 요청했는데
+    # 정렬본 CSV(24,190행)가 비정렬본(24,671행)으로 덮어써졌다(2차 리뷰 S1).
+    for flag, path in (("--verify", a.verify), ("--align", a.align)):
+        if path is not None and not path.exists():
+            return fail(f"{flag} 에 준 파일이 없다: {path}\n"
+                        f"  경로를 확인해라. 없는 파일을 조용히 무시하지 않는다 — "
+                        f"검사를 건너뛰거나 다른 분할로 저장해 버리면 더 나쁘다")
+
     raw = pd.read_csv(a.raw, encoding="utf-8-sig").reset_index(drop=True)
     d = build(raw)
 
-    if a.verify and a.verify.exists():
+    if a.verify:
         # **대조만 하고 파일은 쓰지 않는다.** 예전에는 대조 뒤에도 저장으로 넘어가서,
         # `--align` 없이 `--verify` 만 돌리면 정렬본 CSV(24,190행)를 비정렬본(24,671행)으로
         # 조용히 덮어썼다. 그러면 `_gru_predictions.npz` 와 행수가 어긋나 결합이 깨진다.
@@ -166,10 +182,24 @@ def main() -> int:
         for ours, theirs in VERIFY_MAP.items():
             col = theirs if theirs not in m.columns or theirs != ours else theirs + "_bg"
             if col not in m.columns:
-                skipped.append(ours)
-                print(f"  ? {ours:18} 상대 열 없음 — 이 검사로는 확인 못 함")
+                # **대응 열이 없으면 실패다.** 예전에는 건너뛰고 통과했다. 기준 CSV 에서
+                # 열이 사라진 것을 "확인 못 함" 으로 넘기면 대조가 비어도 성공이 된다
+                # (2차 리뷰의 `현재전력_열누락` 반례). 원래부터 대응이 없는 것만 허용한다.
+                if ours in NO_COUNTERPART:
+                    skipped.append(ours)
+                    print(f"  ? {ours:18} 상대 열이 원래 없다 — 다른 검사가 본다")
+                else:
+                    bad.append(ours)
+                    print(f"  ✗ {ours:18} 기준 CSV 에 있어야 할 열 `{theirs}` 가 없다")
                 continue
-            diff = (m[ours].astype(float) - m[col].astype(float)).abs()
+            a_, b_ = m[ours].astype(float), m[col].astype(float)
+            # NaN 은 비교가 성립하지 않는다 — `NaN > 1e-6` 이 거짓이라 예전에는 통과했다
+            nan_n = int((a_.isna() | b_.isna()).sum())
+            if nan_n:
+                bad.append(ours)
+                print(f"  ✗ {ours:18} 비교할 수 없는 값(NaN) {nan_n:,}행")
+                continue
+            diff = (a_ - b_).abs()
             n = int((diff > 1e-6).sum())
             print(f"  {'✓' if n == 0 else '✗'} {ours:18} 최대차 {diff.max():.3g}"
                   + (f" · 불일치 {n:,}행" if n else ""))
@@ -190,7 +220,7 @@ def main() -> int:
         return 0
 
     d = d[d["y"].notna()].copy()
-    if a.align and a.align.exists():
+    if a.align:
         bgs = pd.read_csv(a.align)
         bgs["ts"] = pd.to_datetime(bgs["forecast_time"]) - pd.Timedelta(minutes=15)
         d = d.merge(bgs[["ts", "split", "전력"]], on="ts", how="inner")

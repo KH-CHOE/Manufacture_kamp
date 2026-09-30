@@ -99,6 +99,42 @@ def train_one(X, Y, C, day, start, split_day, hi, g, seed):
     return net, ei, pred(ei), ep + 1
 
 
+def data_fingerprint(w, cfg, sel) -> dict:
+    """순환신경망이 **실제로 쓰는 값 전부**와 학습 설정을 지문으로 만든다.
+
+    예전에는 시각축(`ts`)의 sha1 만 비교했다. 그래서 시각만 같고 `kW` 에 1,000 을 더하거나
+    `tod_sin` 을 0 으로 바꾼 자료로도 `verified` 가 나왔다(2차 리뷰 S2).
+    설정도 저장만 하고 대조하지 않아 은닉 999·시드 [999] 짜리 예측이 통과했다.
+
+    이제 **값·순서·분할·설정을 모두** 넣는다. 부동소수는 표기 차이로 지문이 흔들리지
+    않도록 소수 6자리로 고정해 직렬화한다.
+    """
+    cols = ["ts", "split", "kW", "y"] + list(cfg["calendar"])
+    missing = [c for c in cols if c not in w.columns]
+    if missing:
+        raise SystemExit(f"지문에 필요한 열이 없다: {missing}")
+    parts = []
+    for c in cols:
+        s = w[c]
+        if s.dtype.kind in "fc":
+            parts.append(c + "=" + "|".join(f"{v:.6f}" for v in s.to_numpy(float)))
+        else:
+            parts.append(c + "=" + "|".join(s.astype(str)))
+    cfgsig = json.dumps({"gru": cfg["gru"], "calendar": list(cfg["calendar"]),
+                         "seeds": list(sel["seeds"]),
+                         "forward_folds": sel["forward_folds"]},
+                        sort_keys=True, ensure_ascii=False)
+    return {
+        "data_sha1": hashlib.sha1("\n".join(parts).encode()).hexdigest(),
+        "config_sha1": hashlib.sha1(cfgsig.encode()).hexdigest(),
+        "config_json": cfgsig,
+        "rows": int(len(w)),
+        "columns": cols,
+        "ts_first": str(w["ts"].iloc[0]),
+        "ts_last": str(w["ts"].iloc[-1]),
+    }
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--input", type=Path, default=HERE / "ensemble_input_data.csv")
@@ -139,17 +175,10 @@ def main() -> None:
         print(f"  {label:>6} MSE {float(((Y[ei] - out[f'pred_{label}']) ** 2).mean()):8.3f}"
               f" · 에폭 {eps}", flush=True)
 
-    # 지문 — 어느 CSV·어느 설정으로 낸 예측인지 남긴다. `train_ensemble.py` 가 대조한다.
-    # 없으면 길이와 행 위치만 맞춰 보게 되고, 자료 자체가 바뀐 경우를 못 잡는다.
-    ts_txt = w["ts"].astype(str).str.cat(sep="|")
-    out["fp_ts_sha1"] = np.array(hashlib.sha1(ts_txt.encode()).hexdigest())
-    out["fp_rows"] = np.array(len(w))
-    out["fp_ts_first"] = np.array(str(w["ts"].iloc[0]))
-    out["fp_ts_last"] = np.array(str(w["ts"].iloc[-1]))
-    out["fp_config"] = np.array(json.dumps(
-        {"hidden": g["hidden"], "window": g["window"], "steps": g["steps"],
-         "train_months": g["train_months"], "seeds": sel["seeds"],
-         "calendar": cfg["calendar"]}, sort_keys=True, ensure_ascii=False))
+    # 지문 — 어느 자료·어느 설정으로 낸 예측인지 남긴다. `train_ensemble.py` 가 대조한다.
+    fp = data_fingerprint(w, cfg, sel)
+    for k, v in fp.items():
+        out[f"fp_{k}"] = np.array(v if not isinstance(v, list) else json.dumps(v))
 
     np.savez(a.output, **out)
     if first_net is not None:
