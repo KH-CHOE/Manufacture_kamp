@@ -1,0 +1,149 @@
+{
+  "tariff": "2021 산업용(을) 고압A 선택I · 제공 표",
+  "base_rate_per_kw": 7220,
+  "billing_peak_kw": 200,
+  "day_wage": 8720,
+  "night_multiplier": 1.5,
+  "night_start": 22,
+  "night_end": 6,
+  "rates": {
+    "summer": {
+      "off": 56.6,
+      "mid": 109.5,
+      "peak": 191.6
+    },
+    "spring_autumn": {
+      "off": 56.6,
+      "mid": 79.1,
+      "peak": 109.8
+    },
+    "winter": {
+      "off": 63.6,
+      "mid": 109.7,
+      "peak": 167.2
+    }
+  },
+  "source": "elec_total.pdf 2021-01-01 시행 1~2페이지 및 사용자 첨부 요금표",
+  "unit_price_won": 150,
+  "unit_price_basis": "개당 생산 이익 150원 가정 (인건비·전력비 차감 전)",
+  "time_bands": {
+    "summer": {
+      "off": [
+        [
+          23,
+          24
+        ],
+        [
+          0,
+          9
+        ]
+      ],
+      "mid": [
+        [
+          9,
+          10
+        ],
+        [
+          12,
+          13
+        ],
+        [
+          17,
+          23
+        ]
+      ],
+      "peak": [
+        [
+          10,
+          12
+        ],
+        [
+          13,
+          17
+        ]
+      ]
+    },
+    "spring_autumn": {
+      "off": [
+        [
+          23,
+          24
+        ],
+        [
+          0,
+          9
+        ]
+      ],
+      "mid": [
+        [
+          9,
+          10
+        ],
+        [
+          12,
+          13
+        ],
+        [
+          17,
+          23
+        ]
+      ],
+      "peak": [
+        [
+          10,
+          12
+        ],
+        [
+          13,
+          17
+        ]
+      ]
+    },
+    "winter": {
+      "off": [
+        [
+          23,
+          24
+        ],
+        [
+          0,
+          9
+        ]
+      ],
+      "mid": [
+        [
+          9,
+          10
+        ],
+        [
+          12,
+          17
+        ],
+        [
+          20,
+          22
+        ]
+      ],
+      "peak": [
+        [
+          10,
+          12
+        ],
+        [
+          17,
+          20
+        ],
+        [
+          22,
+          23
+        ]
+      ]
+    }
+  },
+  "time_band_source": "https://cyber.kepco.co.kr/ckepco/mobile/footer/pdf/201311/chapter9_131121.pdf#page=42",
+  "_설명": [
+    "전기요금 요율과 시간대 구분. **자료다** — 요율이 바뀌면 이 파일만 새로 준다.",
+    "공휴일은 여기 두지 않는다. calendar_YYYY.json 한 곳에서만 읽는다 —",
+    "두 곳에 두면 갈라진다(예전 config.json 에는 public_holidays_2021 이 따로 있었다)."
+  ]
+}

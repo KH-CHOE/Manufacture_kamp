@@ -1,6 +1,3 @@
-fastapi>=0.115,<1
-uvicorn>=0.30,<1
-numpy==2.3.2
-pandas==2.3.2
-scikit-learn==1.7.1
-joblib==1.5.2
+fastapi
+uvicorn[standard]
+# 계산 쪽 의존성은 ../Function/requirements.txt 에 있다

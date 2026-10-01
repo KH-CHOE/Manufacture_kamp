@@ -6,8 +6,9 @@
     "build": "tsc --noEmit && node build.mjs",
     "dev": "npm run build && python3 -m uvicorn backend.app:app --host 127.0.0.1 --port 8065",
     "start": "python3 -m uvicorn backend.app:app --host 127.0.0.1 --port 8065",
-    "prepare:data": "python3 pipeline/rebuild_data.py",
-    "verify:model": "python3 -m backend.verify"
+    "prepare:data": "python3 ../Function/preprocessing.py",
+    "train:model": "python3 ../Function/modeling.py --models et",
+    "verify": "python3 ../Function/verify_pipeline.py"
   },
   "dependencies": {
     "react": "19.3.0",
