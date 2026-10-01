@@ -1,0 +1,39 @@
+{
+  "files": [
+    {
+      "path": "data/raw/okm_augumented_2021.csv",
+      "bytes": 437447,
+      "sha256": "8f7af2e49366c93e1d6f5fdef4b5e350066c1792ac463c2c2886e370f4674830"
+    },
+    {
+      "path": "data/preprocessed/final_input_data.csv",
+      "bytes": 6196472,
+      "sha256": "cba030560e19550e65e24efec6773da9129605c66b8fd681b1eb24c36e3fd0f2"
+    },
+    {
+      "path": "data/preprocessed/okm_augumented_2021_preprocssed_3.csv",
+      "bytes": 2573962,
+      "sha256": "1d5d92357fa89231c8f438f67eb2bbaa967d7235d4cff6662bca061d00fb1cb3"
+    },
+    {
+      "path": "data/preprocessed/okm_augumented_2021_preprocssed_2.csv",
+      "bytes": 1353947,
+      "sha256": "20dd9740a5c50e9ec6c0406564fce9d293c4f3be29cabfdc9ef4cc7d9b93bcc3"
+    },
+    {
+      "path": "data/preprocessed/okm_augumented_2021_preprocssed.csv",
+      "bytes": 1563250,
+      "sha256": "32a4cc558ab5fd15a7e1a15aeaf5758039efea1efab3cc931d89f9afe2ed6347"
+    },
+    {
+      "path": "models/selection.json",
+      "bytes": 2593,
+      "sha256": "398c4a93efd20c665e3f969dbd03a4f6ac95d440fdd130e1b5cc7bfd4da84d77"
+    },
+    {
+      "path": "models/final_model.joblib",
+      "bytes": 39159641,
+      "sha256": "1f7e988328108b1dd851d78b8950cffb3c6b25d8126e8c24fe916b97209b6dde"
+    }
+  ]
+}

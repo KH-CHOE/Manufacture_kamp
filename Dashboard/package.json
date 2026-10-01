@@ -1,0 +1,23 @@
+{
+  "name": "kamp-power-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc --noEmit && node build.mjs",
+    "dev": "npm run build && python3 -m uvicorn backend.app:app --host 127.0.0.1 --port 8065",
+    "start": "python3 -m uvicorn backend.app:app --host 127.0.0.1 --port 8065",
+    "prepare:data": "python3 pipeline/rebuild_data.py",
+    "verify:model": "python3 -m backend.verify"
+  },
+  "dependencies": {
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "lucide-react": "1.48.0"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "esbuild": "0.27.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0"
+  }
+}
