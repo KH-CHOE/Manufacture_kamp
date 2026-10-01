@@ -124,13 +124,47 @@ macOS 에서 sklearn(joblib 포크·OpenMP)과 torch 를 한 프로세스에서 
 ## 파일
 
 ```
-config.py              스키마·역할·규칙 임계값 — 자료에 특정된 값은 전부 여기
-calendar_2021.json     공휴일·휴무. **자료다.** 해가 바뀌면 이 파일만 새로 준다
-preprocessing.py       원자료 → processed.csv + manifest
-modeling.py            processed.csv → results.json + 모델 파일
-make_test_year.py      다른 해 자료를 흉내내 규칙을 시험한다
-requirements.txt        검증에 쓴 버전
+config.py            스키마·역할·규칙 임계값 — 자료에 특정된 값은 전부 여기
+calendar_2021.json   공휴일·휴무·분할날짜. **자료다.** 해가 바뀌면 이 파일만 새로 준다
+tariff.json          전기요금 요율·시간대. 역시 자료다
+preprocessing.py     Dataset/raw → Dataset/preprocessed + manifest
+modeling.py          Dataset/preprocessed → Model/results.json + 모델 파일
+serving.py           화면이 부르는 순수 함수 (FastAPI 를 모른다)
+net_infer.py         순환신경망 추론 전용 프로세스 (torch 만 import 한다)
+optimization.py      자원 최적화 — 최소 인원과 비용
+verify_pipeline.py   누수·규칙 검사 113건
+verify_serving.py    서빙이 보고 수치를 재현하는지 대조
+make_test_year.py    다른 해 자료를 흉내내 규칙을 시험한다
+requirements.txt     검증에 쓴 버전
 ```
+
+앞으로 챗봇 쪽 코드가 같은 자리에 들어온다. `serving.py` 의 함수를 부르면 화면과
+같은 답이 나온다 — 로직이 또 갈라지지 않는다.
+
+## 프로세스를 나누는 이유 — 증상이 둘이다
+
+sklearn 과 torch 를 한 프로세스에 두면 libomp 가 두 번 올라간다.
+
+| 언제 | 증상 | 처방 |
+|---|---|---|
+| 학습 | **교착** — CPU 0% 로 멈춘다(`torch/optim/adam.py`) | `modeling.py` 가 `--only nets`/`--only trees` 로 자기를 두 번 부른다 |
+| 추론 | **종료 시 세그폴트**(139 · `no Python frame`) | `serving.py` 가 `net_infer.py` 를 하위 프로세스로 부른다 |
+
+추론 쪽은 **계산이 맞게 나온다.** 그래서 눈치채기 어렵다 — 출력이 다 찍힌 뒤에 죽는다.
+MSE 대조는 전부 통과하는데 종료 코드만 139 였다. 서버가 내려갈 때마다 죽는 것을
+두고 갈 수 없어 분리했다. 환경변수로는 막히지 않는다.
+
+## 서빙
+
+```bash
+python verify_serving.py     # 저장 파일만으로 보고 수치가 나오는지 대조
+```
+
+`Model/model_et.joblib` + `Model/model_gru.pt` 를 고정 반반으로 섞어 **앙상블로 서빙**한다.
+`model_gru.pt` 가 없거나 예전 형식이면 **트리만 쓰고 그 사실을 알린다** — 조용히 바뀌지 않는다.
+
+순환신경망은 **시드 3개를 모두 돌려 평균**한다. 표준화 통계는 저장된 것을 쓴다 —
+추론 자료로 다시 재면 시험 구간을 본 것이 된다.
 
 ## 한계
 

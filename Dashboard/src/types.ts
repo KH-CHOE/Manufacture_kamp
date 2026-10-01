@@ -1,4 +1,4 @@
-export interface Meta {days:string[];defaultDay:string;model:string;algorithm:string;modelType:string;version:string;features:string[];horizon:number;rows:number;mse:number;mae:number;unit:string;source:string}
+export interface Meta {days:string[];defaultDay:string;model:string;algorithm:string;modelType:string;ensemble?:boolean;blendWeight?:number;seeds?:number[]|null;version:string;features:string[];horizon:number;rows:number;mse:number;mae:number;unit:string;source:string}
 export interface Point {time:string;actual:number|null;predicted:number|null}
 export interface Alert {time:string;targetTime:string;predicted:number;key:string}
 export interface Recommendation {value:number;annualPeak:number;annualPeakTime:string;year:number;coverageStart:string;asOf:string;errorMargin:number;errorSamples:number;basis:string}

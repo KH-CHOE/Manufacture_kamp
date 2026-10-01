@@ -261,7 +261,11 @@ def run_nets(d: pd.DataFrame, folds: list[list[int]], want: list[str]) -> dict:
                     break
         net.load_state_dict(state)
         ei = np.where(te_m)[0]
-        return net, ei, pred(ei), ep + 1
+        # **표준화 통계를 함께 돌려준다.** 이것을 저장하지 않아 `.pt` 만으로는 보고 예측을
+        # 되살릴 수 없었다. 추론 때 다시 계산하면 안 된다 — 학습 구간에서 잰 값이어야 한다.
+        stats = {"mu": float(mu), "sd": float(sd), "ymu": float(ymu), "ysd": float(ysd),
+                 "train_start": int(start), "train_end": int(split_day)}
+        return net, ei, pred(ei), ep + 1, stats
 
     res: dict = {k: {} for k in want}
     preds: dict = {k: {} for k in want}
@@ -271,12 +275,11 @@ def run_nets(d: pd.DataFrame, folds: list[list[int]], want: list[str]) -> dict:
         start = int((pd.Timestamp(str(split)) - pd.DateOffset(months=g["train_months"]))
                     .strftime("%Y%m%d")) if g["train_months"] else 0
         for kind in want:
-            ps, eps, first = [], [], None
+            ps, eps, nets, stats = [], [], [], None
             for sd_ in C.SEEDS:
-                net, ei, p, ep = train_one(kind, start, split, hi, sd_)
-                ps.append(p); eps.append(ep)
-                if first is None:
-                    first = net
+                net, ei, p, ep, st = train_one(kind, start, split, hi, sd_)
+                ps.append(p); eps.append(ep); nets.append(net)
+                stats = st            # 시드와 무관하다(학습 구간만으로 정해진다)
             # **시드별 예측을 평균한다.** 시험 성적으로 시드를 고르지 않는다
             mean_p = np.mean(ps, axis=0)
             res[kind][label] = {**score(Y[ei], mean_p), "rows": int(len(ei)),
@@ -285,9 +288,16 @@ def run_nets(d: pd.DataFrame, folds: list[list[int]], want: list[str]) -> dict:
             preds[f"{kind}|idx|{label}"] = ei
             if label == "test":
                 import torch as T
-                T.save({"state_dict": first.state_dict(), "config": g,
-                        "calendar": C.NET_CALENDAR, "seed": C.SEEDS[0],
-                        "주의": "보고 예측은 시드 3개 평균이다. 이 파일은 첫 시드 하나다"},
+                # **시드 전부와 표준화 통계를 담는다.** 보고 예측이 시드 3개 평균이므로
+                # 첫 시드만 저장하면 그 수치를 되살릴 수 없다. 예전 판이 그랬다.
+                T.save({"kind": kind, "config": g, "calendar": list(C.NET_CALENDAR),
+                        "seeds": list(C.SEEDS),
+                        "state_dicts": [{k: v.cpu() for k, v in n.state_dict().items()}
+                                        for n in nets],
+                        "stats": stats, "n_cal": len(C.NET_CALENDAR),
+                        "n_ch": g["window"] // g["steps"],
+                        "추론": ("시드별로 예측한 뒤 평균한다. 표준화는 stats 의 값을 쓰고 "
+                               "다시 계산하지 않는다 — 학습 구간에서 잰 값이어야 한다")},
                        C.MODEL_DIR / f"model_{kind}.pt")
             print(f"  {NET_MODELS[kind]:22s} {label:>8} MSE {res[kind][label]['MSE']:9.3f}"
                   f" · 에폭 {eps}", flush=True)

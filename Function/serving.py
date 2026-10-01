@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 from pathlib import Path
 from threading import Lock
 
@@ -48,16 +49,41 @@ def num(v) -> float:
     return round(float(v), 3)
 
 
+def _single_thread(model) -> None:
+    """추정기(파이프라인 포함)의 `n_jobs` 를 1 로 내린다."""
+    targets = [model]
+    if hasattr(model, "steps"):
+        targets += [m for _, m in model.steps]
+    for m in targets:
+        if hasattr(m, "n_jobs"):
+            try:
+                m.n_jobs = 1
+            except Exception:
+                pass
+
+
 def model_kind(model) -> str:
     if hasattr(model, "steps"):
         return type(model.steps[-1][1]).__name__
     return type(model).__name__
 
 
-def load(model_path: Path | None = None, data_path: Path | None = None) -> dict:
-    """모델과 재생용 자료를 올린다. 한 번만 부르면 된다."""
+def load(model_path: Path | None = None, data_path: Path | None = None,
+         net_path: Path | None = None, blend: float | None = None) -> dict:
+    """모델과 재생용 자료를 올린다. 한 번만 부르면 된다.
+
+    `net_path` 를 주거나 `Model/model_gru.pt` 가 있으면 **앙상블로 서빙한다** —
+    트리 예측과 순환신경망 시드평균 예측을 고정 반반으로 섞는다. 없으면 트리만 쓴다.
+
+    행은 `modeling.usable()` 로 고른다. **모델링과 같은 규칙이어야** 순환신경망 창이
+    학습 때와 같은 자리에 선다.
+    """
+    import modeling as M
+
     model_path = Path(model_path or C.MODEL_DIR / "model_et.joblib")
     data_path = Path(data_path or C.OUT_DEFAULT)
+    net_path = Path(net_path) if net_path else C.MODEL_DIR / "model_gru.pt"
+    w = C.BLEND_WEIGHT if blend is None else float(blend)
     if not model_path.exists():
         raise FileNotFoundError(
             f"모델 파일이 없다: {model_path}\n"
@@ -70,35 +96,98 @@ def load(model_path: Path | None = None, data_path: Path | None = None) -> dict:
     if not isinstance(bundle, dict) or not {"estimator", "features"} <= bundle.keys():
         raise ValueError("모델 묶음에 estimator 와 features 가 있어야 한다")
 
+    # **추론에서는 트리 병렬을 끈다.** joblib 의 작업자 풀(OpenMP)이 torch 와 같은
+    # 프로세스에 있으면 종료 때 세그폴트(139)가 난다. 계산 결과는 같고 속도만 조금 준다.
+    # 학습 때의 교착과는 다른 증상이지만 뿌리는 같다 — libomp 가 두 번 올라가는 것.
+    _single_thread(bundle["estimator"])
+
     d = pd.read_csv(data_path, parse_dates=["ts"])
     missing = [c for c in list(bundle["features"]) + ["ts", "split", "kW", "y"]
                if c not in d.columns]
     if missing:
         raise ValueError(f"전처리 결과에 필요한 열이 없다: {missing}")
 
-    f = d.rename(columns=RENAME).sort_values("forecast_time").reset_index(drop=True)
-    f["target_time"] = f["forecast_time"] + pd.Timedelta(minutes=C.STEP_MIN)
-    # 화면 계약의 달력 두 열을 만든다 — 전처리에는 is_weekend·is_off 로 들어 있다
-    f["주중여부"] = (1 - f["is_weekend"]).astype(int)
-    f["주중공휴일여부"] = (f["is_off"] & (f["is_weekend"] == 0)).astype(int)
-
-    observed = f[["forecast_time", "현재전력"]].copy()   # 전체 구간 — 연간 피크 산정에 쓴다
-    test = f.loc[f["split"] == "test"].reset_index(drop=True)
-    if test.empty:
+    # **모델링과 같은 행 규칙.** 이게 어긋나면 순환신경망 창이 다른 자리에 선다
+    rows = d[M.usable(d)].sort_values("ts").reset_index(drop=True)
+    test_pos = np.where(rows["split"].to_numpy() == "test")[0]
+    if len(test_pos) == 0:
         raise ValueError("재생할 시험 구간 행이 없다")
 
-    pred = np.asarray(bundle["estimator"].predict(test[bundle["features"]]), float)
-    if pred.shape != (len(test),) or not np.isfinite(pred).all():
+    tree_pred = np.asarray(
+        bundle["estimator"].predict(rows.iloc[test_pos][bundle["features"]]), float)
+    if tree_pred.shape != (len(test_pos),) or not np.isfinite(tree_pred).all():
         raise ValueError("다음 15분 예측이 유한한 스칼라여야 한다")
-    test["prediction"] = pred
-    test["day_key"] = test["forecast_time"].dt.strftime("%Y-%m-%d")
+
+    # **최적화를 torch 보다 먼저 만든다.** 순서가 중요하다 —
+    # 뒤에 만들면 프로세스가 끝날 때 세그폴트(종료 코드 139)가 난다.
+    # sklearn·pandas 쪽과 torch 의 libomp 해제 순서가 엉키기 때문으로 보인다.
+    # 계산 결과는 어느 쪽이든 같지만, 서버가 종료마다 죽는 것을 그냥 둘 수 없다.
+    optimizer = StaffingOptimizer()
+
+    net_info, net_pred, mode = None, None, "tree"
+    if net_path.exists():
+        net_info, net_pred = _net_from_subprocess(net_path, data_path, test_pos)
+        if net_pred is not None:
+            mode = "ensemble"
+
+    pred = tree_pred if net_pred is None else w * tree_pred + (1 - w) * net_pred
+
+    f = rows.iloc[test_pos].rename(columns=RENAME).reset_index(drop=True)
+    f["target_time"] = f["forecast_time"] + pd.Timedelta(minutes=C.STEP_MIN)
+    f["주중여부"] = (1 - f["is_weekend"]).astype(int)
+    f["주중공휴일여부"] = (f["is_off"] & (f["is_weekend"] == 0)).astype(int)
+    f["prediction"] = pred
+    f["tree_prediction"] = tree_pred
+    if net_pred is not None:
+        f["net_prediction"] = net_pred
+    f["day_key"] = f["forecast_time"].dt.strftime("%Y-%m-%d")
+
+    # 연간 피크 산정에는 시험 구간 밖의 관측도 필요하다
+    obs = d.rename(columns=RENAME)[["forecast_time", "현재전력"]].copy()
 
     _state.update(
-        bundle=bundle, frame=test, observed=observed,
-        groups={k: g.reset_index(drop=True) for k, g in test.groupby("day_key")},
-        optimizer=StaffingOptimizer(), model_path=model_path, data_path=data_path,
+        bundle=bundle, net_info=net_info, mode=mode, blend_weight=w,
+        frame=f, observed=obs,
+        groups={k: g.reset_index(drop=True) for k, g in f.groupby("day_key")},
+        optimizer=optimizer, model_path=model_path, data_path=data_path,
+        net_path=net_path if net_info else None,
         version=hashlib.sha256(model_path.read_bytes()).hexdigest()[:10])
     return _state
+
+
+def _net_from_subprocess(net_path: Path, data_path: Path,
+                         test_pos: np.ndarray) -> tuple[dict | None, np.ndarray | None]:
+    """순환신경망 예측을 **따로 띄운 프로세스**에서 받아 온다.
+
+    왜 한 프로세스에서 안 하나 — sklearn 과 torch 가 같이 있으면 libomp 가 두 번 올라간다.
+    계산은 맞게 나오지만 **프로세스가 끝날 때 세그폴트(139)** 가 난다. 실측으로 확인했다
+    (`no Python frame` — 인터프리터 해제 시점). 서버가 내려갈 때마다 죽는 것을 둘 수 없다.
+    학습에서 `modeling.py` 를 두 프로세스로 나눈 것과 같은 처방이다.
+    """
+    import subprocess
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp) / "net.npz"
+        r = subprocess.run(
+            [sys.executable, "-B", str(HERE / "net_infer.py"),
+             "--data", str(data_path), "--model", str(net_path), "--out", str(out)],
+            cwd=HERE, capture_output=True, text=True)
+        if r.returncode != 0 or not out.exists():
+            msg = (r.stdout + r.stderr).strip().splitlines()
+            print(f"주의 — 순환신경망 추론에 실패해 트리만 쓴다.\n  "
+                  + "\n  ".join(msg[-3:] if msg else ["(출력 없음)"]))
+            return None, None
+        z = np.load(out)
+        where, pred = z["where"], z["pred"]
+        info = json.loads(str(z["info"])) if "info" in z.files else {}
+        info["path"] = net_path.name
+
+    if not np.array_equal(where, test_pos):
+        print("주의 — 순환신경망이 예측한 행이 화면이 쓰는 행과 다르다. 트리만 쓴다.")
+        return None, None
+
+    return info, pred
 
 
 def _day(day: str) -> pd.DataFrame:
@@ -111,10 +200,18 @@ def meta() -> dict:
     f = _state["frame"]
     p, t = f["prediction"].to_numpy(), f["전력"].to_numpy()
     days = list(_state["groups"])
-    return {"days": days, "defaultDay": days[0],
-            "model": _state["model_path"].name,
-            "algorithm": type(_state["bundle"]["estimator"]).__name__,
-            "modelType": model_kind(_state["bundle"]["estimator"]),
+    tree_name = model_kind(_state["bundle"]["estimator"])
+    if _state["mode"] == "ensemble":
+        kind = str(_state["net_info"].get("kind") or "gru").upper()
+        algo = f"{tree_name} + {kind} 앙상블"
+        name = f"{_state['model_path'].name} + {_state['net_path'].name}"
+    else:
+        algo, name = tree_name, _state["model_path"].name
+    return {"days": days, "defaultDay": days[0], "model": name,
+            "algorithm": algo, "modelType": algo,
+            "ensemble": _state["mode"] == "ensemble",
+            "blendWeight": _state["blend_weight"],
+            "seeds": (_state["net_info"].get("seeds") if _state["mode"] == "ensemble" else None),
             "version": _state["version"], "features": _state["bundle"]["features"],
             "horizon": C.STEP_MIN, "rows": len(f),
             "mse": num(np.mean((p - t) ** 2)), "mae": num(np.mean(abs(p - t))),
