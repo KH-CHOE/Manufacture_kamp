@@ -3,25 +3,28 @@
 제6회 K-인공지능 제조데이터 분석 경진대회 과제 ⑤.
 
 ```
-Dashboard/           전력 관제·자원 최적화 화면 (폴더 하나로 실행된다)
-functions/
-  modeling/          전처리 + 모델 비교 — 원자료에서 모델까지 한 경로
-datasets/
+Dataset/
   raw/               원자료 CSV
   preprocessed/      전처리 결과 + 판정 기록(manifest)
+Model/               학습 산출물 — 모델 파일과 results.json
+Function/            전처리 + 모델 비교 코드
+Dashboard/           전력 관제·자원 최적화 화면 (폴더 하나로 실행된다)
 archive/
   prev_contest/      지난 대회 작업
   this_contest/      이번 대회 모델링 이력 (Modeling · Modeling_RNN · Modeling_GRU_Tree_Ensemble)
 ```
+
+코드(`Function/`)와 자료(`Dataset/`)·산출물(`Model/`)을 갈라 뒀다.
+화면은 `Model/` 만 바라보면 된다.
 
 ## 어디부터 보면 되나
 
 | 하고 싶은 것 | 보는 곳 |
 |---|---|
 | 화면을 띄운다 | `Dashboard/README.md` |
-| 자료를 다시 전처리한다 | `functions/modeling/README.md` |
-| 모델을 다시 비교한다 | 같은 문서. `python modeling.py` |
-| 어떤 모델이 왜 뽑혔는지 | `functions/modeling/results.json` |
+| 자료를 다시 전처리한다 | `Function/README.md` |
+| 모델을 다시 비교한다 | 같은 문서. `python Function/modeling.py` |
+| 어떤 모델이 왜 뽑혔는지 | `Model/results.json` |
 | 예전에 뭘 했는지 | `archive/this_contest/*/README.md` |
 
 ## 지금 결과
@@ -53,3 +56,18 @@ GRU 와 LSTM 은 **구별되지 않는다**(차이 평균 +2.50, 표준편차 6.
 - 순환신경망은 **시드 3개 예측을 평균**해 보고한다. 시험 성적으로 시드를 고르지 않는다
 - 결합 가중치를 고르지 않는다 — 구간마다 최적이 반대 방향이라 고정 반반
 - 전처리는 **날짜를 코드에 박지 않는다.** 2022년 자료를 넣어도 돌아간다
+
+
+## 아직 전처리가 둘이다
+
+`Function/preprocessing.py` 와 `Dashboard/pipeline/rebuild_data.py` 가 따로 있다.
+
+| | `Function/` | `Dashboard/pipeline/` |
+|---|---|---|
+| 다른 해 자료 | **돌아간다** — 날짜를 코드에 박지 않는다 | 6,168행이 아니면 예외로 멈춘다 |
+| 결측 대치 | 엄격히 과거만 보는 누적 중앙값 | (날짜, 시간) 별 하드코딩 값 |
+| 깨진 날 | 규칙으로 복구하거나 버린다 | `07-13`·`07-15` 를 날짜로 지정해 삭제 |
+| 출력 | `Dataset/preprocessed/processed.csv` (42열) | `Dashboard/data/preprocessed/final_input_data.csv` |
+
+**두 파일은 열 구성이 다르다.** 이름만 맞춰 놓고 화면이 다른 쪽을 읽게 하면 깨진다.
+어느 쪽 전처리를 쓸지 정한 뒤에 합쳐야 한다.

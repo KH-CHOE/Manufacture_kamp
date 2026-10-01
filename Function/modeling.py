@@ -179,7 +179,7 @@ def run_trees(d: pd.DataFrame, folds: list[list[int]], want: list[str]) -> dict:
             preds[kind][label] = pr
             if label == "test":
                 joblib.dump({"estimator": p, "features": C.TREE_FEATURES},
-                            HERE / f"model_{kind}.joblib", compress=3)
+                            C.MODEL_DIR / f"model_{kind}.joblib", compress=3)
             print(f"  {TREE_MODELS[kind]:22s} {label:>8} MSE {res[kind][label]['MSE']:9.3f}",
                   flush=True)
     np.savez(HERE / "_pred_trees.npz",
@@ -288,7 +288,7 @@ def run_nets(d: pd.DataFrame, folds: list[list[int]], want: list[str]) -> dict:
                 T.save({"state_dict": first.state_dict(), "config": g,
                         "calendar": C.NET_CALENDAR, "seed": C.SEEDS[0],
                         "주의": "보고 예측은 시드 3개 평균이다. 이 파일은 첫 시드 하나다"},
-                       HERE / f"model_{kind}.pt")
+                       C.MODEL_DIR / f"model_{kind}.pt")
             print(f"  {NET_MODELS[kind]:22s} {label:>8} MSE {res[kind][label]['MSE']:9.3f}"
                   f" · 에폭 {eps}", flush=True)
     flat = {}
@@ -323,12 +323,13 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--data", type=Path, default=C.OUT_DEFAULT)
-    ap.add_argument("--out", type=Path, default=HERE / "results.json")
+    ap.add_argument("--out", type=Path, default=C.MODEL_DIR / "results.json")
     ap.add_argument("--models", default=",".join(ALL_MODELS),
                     help=f"쉼표로 구분. 가능: {','.join(ALL_MODELS)}")
     ap.add_argument("--only", choices=["trees", "nets"], default=None,
                     help="내부용 — 오케스트레이터가 하위 프로세스로 호출할 때 쓴다")
     a = ap.parse_args()
+    C.MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
     if not a.data.exists():
         print(f"✗ 전처리 결과가 없다: {a.data}\n  preprocessing.py 를 먼저 돌려라")

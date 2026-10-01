@@ -4,13 +4,13 @@
 전처리와 모델링이 파일 두 개로 갈려 있고, 그 사이를 CSV 한 장이 잇는다.
 
 ```
-datasets/raw/*.csv ──preprocessing.py──▶ datasets/preprocessed/processed.csv
+Dataset/raw/*.csv ──preprocessing.py──▶ Dataset/preprocessed/processed.csv
                                               (+ manifest)
                                                      │
                                           modeling.py ──▶ results.json (+ joblib/pt)
 ```
 
-자료는 저장소의 `datasets/` 에 모여 있다. 세 벌로 갈라지지 않게 한 곳만 쓴다.
+자료는 저장소의 `Dataset/` 에, 학습 산출물은 `Model/` 에 모여 있다. 세 벌로 갈라지지 않게 한 곳만 쓴다.
 `--raw`·`--out` 으로 언제든 다른 경로를 줄 수 있다 — **2022년 자료는 그렇게 넣는다.**
 
 ## 왜 이렇게 만들었나
@@ -77,7 +77,7 @@ python preprocessing.py --raw test_year_2022.csv --out processed_2022.csv
 ## 실행
 
 ```bash
-# ① 전처리 — 인수 없이 돌아간다 (datasets/raw → datasets/preprocessed)
+# ① 전처리 — 인수 없이 돌아간다 (Dataset/raw → Dataset/preprocessed)
 python preprocessing.py
 
 #    다른 해 자료

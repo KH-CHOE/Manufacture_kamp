@@ -81,7 +81,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--raw", type=Path,
-                    default=Path(__file__).resolve().parents[2] / "datasets" / "raw" / "okm_augumented_2021.csv")
+                    default=Path(__file__).resolve().parents[1] / "Dataset" / "raw" / "okm_augumented_2021.csv")
     ap.add_argument("--out", type=Path, default=Path(__file__).parent / "test_year_2022.csv")
     a = ap.parse_args()
     raw = pd.read_csv(a.raw, encoding="utf-8-sig")
