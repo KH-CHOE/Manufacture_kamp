@@ -11,7 +11,12 @@ from pathlib import Path
 # ── 경로 ──────────────────────────────────────────────────────────
 # 이 폴더는 **바깥에 기대지 않는다.** 원자료까지 안에 두어 혼자 끝까지 돌아간다.
 HERE = Path(__file__).resolve().parent
-RAW_DEFAULT = HERE / "data" / "okm_augumented_2021.csv"
+# 저장소 뿌리 — functions/modeling/ 에서 두 단계 위
+REPO = HERE.parents[1]
+# 자료는 저장소의 datasets/ 에 모아 둔다. 세 벌로 갈라지지 않게 한 곳만 쓴다.
+# `--raw`·`--out` 으로 언제든 다른 경로를 줄 수 있다 — 2022년 자료는 그렇게 넣는다.
+RAW_DEFAULT = REPO / "datasets" / "raw" / "okm_augumented_2021.csv"
+OUT_DEFAULT = REPO / "datasets" / "preprocessed" / "processed.csv"
 CALENDAR_DEFAULT = HERE / "calendar_2021.json"
 
 # ── 스키마: 열의 역할 ──────────────────────────────────────────────

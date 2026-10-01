@@ -322,7 +322,7 @@ def summarize(res: dict, folds: list[list[int]]) -> dict:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--data", type=Path, default=HERE / "processed.csv")
+    ap.add_argument("--data", type=Path, default=C.OUT_DEFAULT)
     ap.add_argument("--out", type=Path, default=HERE / "results.json")
     ap.add_argument("--models", default=",".join(ALL_MODELS),
                     help=f"쉼표로 구분. 가능: {','.join(ALL_MODELS)}")

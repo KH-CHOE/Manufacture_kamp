@@ -487,6 +487,11 @@ def run(raw_path: Path, out_csv: Path, calendar: Path | None,
     long = to_15min(d, ctx, log)
     long = add_segments(long, log)
     long = add_features(long, cal, log)
+    # 분할 날짜를 인수로 안 줬으면 달력 자료에서 찾는다 — 해마다 다른 값이라 자료다
+    if split_date is None and cal and cal.get("split_date"):
+        split_date = int(cal["split_date"])
+        log.add("분할 날짜를 달력 자료에서 읽었다", 값=split_date,
+                출처=calendar.name if calendar else None)
     long = add_split(long, split_date, frac, log)
 
     # 타깃이 없는 행(구간 끝)은 학습·평가에 쓸 수 없다
@@ -521,7 +526,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--raw", type=Path, default=C.RAW_DEFAULT, help="원자료 CSV")
-    ap.add_argument("--out", type=Path, default=HERE / "processed.csv")
+    ap.add_argument("--out", type=Path, default=C.OUT_DEFAULT)
     ap.add_argument("--calendar", type=Path, default=C.CALENDAR_DEFAULT,
                     help="공휴일·휴무 JSON. 안 주면 주말만으로 is_off 를 만든다")
     ap.add_argument("--split-date", type=int, default=None,

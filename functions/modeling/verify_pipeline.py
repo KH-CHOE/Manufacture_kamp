@@ -180,7 +180,7 @@ def main() -> int:
 
     # ── G 규칙이 2021 에서 잡아야 할 것 ──
     print("\nG 규칙 작동 (2021)")
-    man = json.loads((HERE / "processed_manifest.json").read_text("utf-8"))
+    man = json.loads((C.OUT_DEFAULT.with_name(C.OUT_DEFAULT.stem + "_manifest.json")).read_text("utf-8"))
     dropped = set(man["제외한열"])
     for c in ("평균", "공장인원", "전기요금(계절)", "인건비", "day", "d", "m"):
         ok(f"{c} 를 제외했다", c in dropped)
@@ -221,7 +221,7 @@ def main() -> int:
     # ── I 공통 행 ──
     print("\nI 모든 모델이 같은 행을 쓰는가")
     import modeling as M
-    d = M.load(HERE / "processed.csv")
+    d = M.load(C.OUT_DEFAULT)
     mask = M.usable(d)
     rows = d[mask]
     need = [c for c in (C.TREE_FEATURES + C.NET_CALENDAR + ["kW", "y"]) if c in d.columns]

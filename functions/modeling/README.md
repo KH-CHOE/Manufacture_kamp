@@ -4,9 +4,14 @@
 전처리와 모델링이 파일 두 개로 갈려 있고, 그 사이를 CSV 한 장이 잇는다.
 
 ```
-원자료.csv  ──preprocessing.py──▶  processed.csv  ──modeling.py──▶  results.json
-                                   (+ manifest)                     (+ joblib/pt)
+datasets/raw/*.csv ──preprocessing.py──▶ datasets/preprocessed/processed.csv
+                                              (+ manifest)
+                                                     │
+                                          modeling.py ──▶ results.json (+ joblib/pt)
 ```
+
+자료는 저장소의 `datasets/` 에 모여 있다. 세 벌로 갈라지지 않게 한 곳만 쓴다.
+`--raw`·`--out` 으로 언제든 다른 경로를 줄 수 있다 — **2022년 자료는 그렇게 넣는다.**
 
 ## 왜 이렇게 만들었나
 
@@ -14,8 +19,16 @@
 시험 행수가 4,991 / 7,104 / 7,294 / 23,425 / 23,904 로 갈렸고, 같은 모델도 기준이
 바뀌면 값이 달라졌다. 이 판은 그 문제를 구조로 막는다.
 
-**모델이 쓰는 행은 하나다.** 어느 한 모델이라도 쓸 수 없는 행은 전부에서 뺀다.
-행 기준은 `results.json` 에 적는다.
+**평가 행은 모든 모델이 같다.** 어느 한 모델이라도 쓸 수 없는 행은 전부에서 뺀다.
+행 기준은 `results.json` 에 적고, 결합할 때 두 예측이 **같은 행을 가리키는지 단정**한다
+(길이만 맞추면 안 된다 — 길이가 같은 다른 구간일 수 있다).
+
+> **학습 범위는 모델마다 다르다. 그건 의도다.**
+> 트리는 분할 이전의 모든 행으로 학습하고, 순환신경망은 **직전 3개월**만 쓴다
+> (`config.NET["train_months"]`). 전진검증에서 그 편이 나았기 때문이다.
+> 또 순환신경망은 걸러진 프레임에서 창을 다시 만들어 **앞 95행을 더 쓰지 못한다.**
+> 그 95행은 2021-01-01 23:45 ~ 01-02 23:15 이고 **어느 평가 구간에도 들어가지 않는다**
+> (실측 0행). 그래서 비교에는 영향이 없다.
 
 ## 핵심 — 날짜를 코드에 박지 않는다
 
@@ -64,18 +77,23 @@ python preprocessing.py --raw test_year_2022.csv --out processed_2022.csv
 ## 실행
 
 ```bash
-# ① 전처리
-python preprocessing.py --raw <원자료.csv> --out processed.csv \
-       --calendar calendar_2021.json --split-date 20210725
+# ① 전처리 — 인수 없이 돌아간다 (datasets/raw → datasets/preprocessed)
+python preprocessing.py
 
-#    달력 자료나 분할 날짜를 모르면 빼면 된다 — 시간 순서 뒤 30% 로 자동 분할한다
-python preprocessing.py --raw <원자료.csv> --out processed.csv
+#    다른 해 자료
+python preprocessing.py --raw <2022원자료.csv> --out <나갈 경로.csv>
+
+#    분할 날짜는 calendar_2021.json 의 split_date 에서 읽는다.
+#    달력을 안 주면 시간 순서 뒤 30% 로 자동 분할하고 그 사실을 manifest 에 적는다
 
 # ② 모델링 — 전부 비교
-python modeling.py --data processed.csv
+python modeling.py
 
-#    일부만
-python modeling.py --data processed.csv --models baseline,et,gru,ensemble
+#    일부만 (트리만 돌리면 2분, 순환 계열까지면 2시간)
+python modeling.py --models baseline,et,gru,ensemble
+
+# ③ 검사
+python verify_pipeline.py
 ```
 
 `modeling.py` 는 **자기를 하위 프로세스로 두 번 호출한다**(`--only nets`, `--only trees`).
@@ -159,3 +177,52 @@ requirements.txt        검증에 쓴 버전
 저장 파일은 첫 시드 하나이고 표준화 통계를 담지 않는다. 대시보드가 순환 계열을 쓰려면
 시드별 가중치와 표준화 통계를 함께 저장하도록 `modeling.py` 를 고쳐야 한다.
 트리 계열(`joblib`)은 파일만으로 그대로 재현된다.
+
+
+## 지금 결과
+
+공통 24,576행 · 시험 4,991행 · 전진검증 4구간.
+
+| 모델 | 전진검증 | ± | 시험 |
+|---|---:|---:|---:|
+| **ExtraTrees + GRU 앙상블** | **47.43** | 30.47 | **45.54** |
+| ExtraTrees | 49.32 | 34.96 | 54.95 |
+| HistGradientBoosting | 57.61 | 35.26 | 60.01 |
+| GRU | 60.66 | 28.05 | 49.92 |
+| LSTM | 63.16 | 33.99 | 57.66 |
+| RandomForest | 91.68 | 61.09 | 120.10 |
+| 직전값 유지 | 205.15 | 10.30 | 180.33 |
+| 시각×요일 중앙값 | 1339.49 | 971.61 | 1540.36 |
+
+**앙상블이 두 기준 모두 1위다.** 그러나 과하게 읽으면 안 된다 — 구간별 이득이
+`+5.65 · −1.36 · −4.05 · +7.31` 로 **평균 +1.89 인데 표준편차가 4.73** 이다.
+네 구간으로는 이득 자체가 확실하다고 말할 수 없다. 시험 구간 이득(+9.42)은 크지만
+그 구간은 선정에 쓸 수 없다.
+
+**GRU 와 LSTM 은 구별되지 않는다** — 구간별 차이가 `+2.14 · +0.45 · −4.76 · +12.17`
+로 방향이 뒤집히고, 평균 +2.50 에 표준편차 6.13 이다.
+
+**RandomForest 만 뚜렷이 밀린다**(91.68). 6/01 구간에서만 10.12 로 좋고 나머지에서
+무너진다 — 전환대에서 평균 쪽으로 끌려가기 때문으로 보인다.
+
+### 학습 예산이 모자란 구간이 있다
+
+에폭 상한 200 에 닿은 경우:
+
+```
+GRU   20210401  [200, 200, 200]
+LSTM  20210401  [200, 200, 200]
+LSTM  20210601  [186, 145, 200]
+LSTM  20210701  [130, 106, 200]
+```
+
+4월은 격주로 조업이 뒤집히는 구간이라 수렴이 안 된다. **상한을 올리면 어떻게 되는지는
+재지 않았다.** LSTM 이 GRU 보다 자주 닿으므로 LSTM 쪽이 더 불리하게 측정됐을 수 있다.
+
+### 저장하지 않는 모델
+
+`model_et.joblib`(43MB)·`model_rf.joblib`(34MB)는 **2분이면 다시 학습되므로** 담지 않는다.
+
+    python modeling.py --models et,rf,hgb
+
+반대로 `model_gru.pt`·`model_lstm.pt` 는 작고(1MB) 다시 만들려면 두 시간이라 담는다.
