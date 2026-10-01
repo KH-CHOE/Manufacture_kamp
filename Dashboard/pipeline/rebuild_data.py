@@ -1,21 +1,20 @@
-"""Rebuild all model input stages using only files inside this dashboard folder.
+"""Build final model input directly from the packaged raw data.
 
 Run: python3 pipeline/rebuild_data.py
-Outputs go to data/generated; packaged production inputs remain unchanged.
+Intermediate stages stay in memory; only final_input_data.csv is written.
 """
 from pathlib import Path
-import hashlib
 import json
-import subprocess
-import sys
+import argparse
+from io import StringIO
+import os
 import numpy as np
 import pandas as pd
 from features import POWER_COLUMNS, FEATURES, prepare, preprocess, build_features
 
 ROOT = Path(__file__).resolve().parents[1]
 RAW = ROOT/'data/raw/okm_augumented_2021.csv'
-OUTPUT = ROOT/'data/generated'
-REFERENCE = ROOT/'data/preprocessed'
+OUTPUT = ROOT/'data/preprocessed/final_input_data.csv'
 
 
 def build_first_stage():
@@ -37,11 +36,37 @@ def build_first_stage():
     rain=(expanded['날짜']==20210124)&(expanded['시간']==0)
     assert rain.sum()==4
     expanded.loc[rain,'강수량']=6.3
-    expanded.to_csv(OUTPUT/'okm_augumented_2021_preprocssed.csv',index=False,encoding='utf-8-sig')
+    return expanded
+
+
+def build_calendar_and_history(df):
+    dates = pd.to_datetime(df['날짜'].astype(str), format='%Y%m%d')
+    holidays = {20210101,20210211,20210212,20210301,20210505,20210519,20210816}
+    weekday = dates.dt.weekday.lt(5)
+    df.insert(0, '주중여부', weekday.astype(int))
+    df.insert(1, '주중공휴일여부', (weekday & df['날짜'].isin(holidays)).astype(int))
+    df = df.drop(columns=['날짜','평균']).reset_index(drop=True)
+    day = pd.to_datetime(dict(year=2021,month=df['m'],day=df['d']))
+    day_index = df.groupby(['m','d'],sort=False).cumcount()
+    assert (day_index.groupby(day).max()==95).all()
+    assert (df['시간'].to_numpy()==(day_index//4).to_numpy()).all()
+    df['15분위치']=(day_index%4).astype('int8')
+    stamp=day+pd.to_timedelta(df['시간'],unit='h')+pd.to_timedelta(df['15분위치']*15,unit='m')
+    assert stamp.is_monotonic_increasing and stamp.is_unique
+    segment=stamp.diff().ne(pd.Timedelta(minutes=15)).cumsum()
+    power=df['현재전력']
+    grouped=power.groupby(segment,sort=False)
+    for lag in (1,2,4,96):
+        df[f'과거전력_{lag}칸']=grouped.shift(lag)
+    df['전력변화_15분']=power-df['과거전력_1칸']
+    df['전력변화_60분']=power-df['과거전력_4칸']
+    df['최근1시간_전력평균']=grouped.transform(lambda s:s.rolling(4,min_periods=4).mean())
+    df['최근1시간_전력최대']=grouped.transform(lambda s:s.rolling(4,min_periods=4).max())
+    return df
 
 
 def build_final_stage():
-    b=prepare(OUTPUT/'okm_augumented_2021_preprocssed_3.csv')
+    b=prepare(build_calendar_and_history(build_first_stage()))
     b['forecast_time']=b.timestamp+pd.Timedelta(minutes=15)
     b['target_time']=b.timestamp+pd.Timedelta(minutes=30)
     # HS time and power features are reconstructed from raw, without model_ready.csv.
@@ -59,26 +84,23 @@ def build_final_stage():
     selected=json.loads((ROOT/'models/selection.json').read_text())['features']
     assert set(selected).issubset(FEATURES+['HS_'+c for c in hscols])
     out=merged[['source_row','forecast_time','target_time','date_key','split','전력']+selected]
-    out.to_csv(OUTPUT/'final_input_data.csv',index=False,encoding='utf-8-sig')
+    return out
 
 
 def main():
-    OUTPUT.mkdir(parents=True,exist_ok=True)
-    build_first_stage()
-    for name in ['build_preprocssed_2.py','build_preprocssed_3.py']:
-        subprocess.run([sys.executable,str(Path(__file__).parent/name)],check=True)
-    build_final_stage()
-    comparisons=[]
-    for file in sorted(OUTPUT.glob('*.csv')):
-        reference=REFERENCE/file.name
-        actual=pd.read_csv(file)
-        expected=pd.read_csv(reference)
-        pd.testing.assert_frame_equal(actual,expected,check_dtype=False,rtol=1e-8,atol=1e-5)
-        comparisons.append({'file':file.name,'rows':len(actual),'columns':len(actual.columns),'matches_packaged_reference':True})
-    manifest={'raw_sha256':hashlib.sha256(RAW.read_bytes()).hexdigest(),'comparisons':comparisons,
-              'target':'next 15-minute power','known_context_assumption':'same-hour production and weather are known',
-              'scope':'Historical reproduction for supplied 2021 dataset; not a general online preprocessing service.'}
-    (OUTPUT/'reproduction_manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2))
-    print('PASS: all four generated CSVs match packaged preprocessing and final model input.')
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--output',type=Path,default=OUTPUT)
+    args=parser.parse_args()
+    out=build_final_stage()
+    csv_text=out.to_csv(index=False)
+    serialized=pd.read_csv(StringIO(csv_text))
+    # Validate against the bundled final input before replacing it.
+    if OUTPUT.exists():
+        pd.testing.assert_frame_equal(serialized,pd.read_csv(OUTPUT),check_dtype=False,rtol=1e-8,atol=1e-5)
+    args.output.parent.mkdir(parents=True,exist_ok=True)
+    temporary=args.output.with_suffix('.tmp')
+    temporary.write_text(csv_text,encoding='utf-8-sig')
+    os.replace(temporary,args.output)
+    print(f'PASS: raw → final input; rows={len(out)}, columns={len(out.columns)}; saved {args.output}')
 
 if __name__=='__main__':main()

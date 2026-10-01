@@ -2,14 +2,8 @@
 최종 CSV의 시간은 HS와 같은 구간 종료 시각 기준이다.
 기존 BG 입력 가용성 가정(같은 시간 생산·날씨를 안다)을 유지한다.
 """
-from pathlib import Path
-import json, hashlib, unicodedata
 import numpy as np
 import pandas as pd
-HERE=Path(__file__).resolve().parent
-PROJECT=HERE.parent
-def locate(p):
-    return p if p.exists() else Path(unicodedata.normalize('NFD',str(p)))
 POWER_COLUMNS=['15분','30분','45분','60분']
 CONTEXT_COLUMNS=['생산량','기온','풍속','습도','강수량']
 LAGS=(1,2,4,96,672)
@@ -22,13 +16,9 @@ FEATURES = [
     '최근2시간_전력평균', '최근2시간_전력최대', '최근4시간_전력평균', '최근4시간_전력최대',
 ]
 
-PARAMS = dict(n_estimators=300, max_features=1.0, min_samples_leaf=2,
-              min_samples_split=6, max_depth=32, bootstrap=False,
-              max_samples=None, criterion='squared_error', random_state=42, n_jobs=-1)
-
-def prepare(source: Path) -> pd.DataFrame:
+def prepare(source: pd.DataFrame) -> pd.DataFrame:
     """1단계와 동일한 공통 표본 및 F 변수 구성. 삭제일을 넘는 창 제외."""
-    df = pd.read_csv(source)
+    df = source.copy()
     if len(df) != 24480 or df['전력'].isna().sum() != 1:
         raise ValueError('기존 preprocssed_3 데이터(24,480행, 정답 결측 1개)가 필요합니다.')
     date = pd.to_datetime(dict(year=2021, month=df.m, day=df.d))

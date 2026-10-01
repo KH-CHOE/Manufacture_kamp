@@ -101,23 +101,16 @@ python3 -m backend.verify
 Dashboard/
 ├── data/
 │   ├── raw/okm_augumented_2021.csv
-│   ├── preprocessed/
-│   │   ├── okm_augumented_2021_preprocssed.csv
-│   │   ├── okm_augumented_2021_preprocssed_2.csv
-│   │   ├── okm_augumented_2021_preprocssed_3.csv
-│   │   └── final_input_data.csv
-│   └── generated/  # 파이프라인 재생성 결과 및 대조 검증 기록
+│   └── preprocessed/final_input_data.csv
 ├── models/
 │   ├── final_model.joblib
 │   └── selection.json
 ├── pipeline/
-│   ├── rebuild_data.py
-│   ├── build_preprocssed_2.py
-│   ├── build_preprocssed_3.py
-│   └── features.py
+│   ├── rebuild_data.py  # 원본 → 최종 입력 CSV
+│   └── features.py      # 최종 입력에 필요한 변수 생성
 ├── backend/
+├── optimization/
 ├── src/
-├── dist/  # npm run build로 생성
 ├── package.json
 └── package-lock.json
 ```
@@ -129,10 +122,12 @@ npm run prepare:data
 npm run verify:model
 ```
 
-파이프라인은 2021년 제공 원본을 대상으로 기존 모델과 동일한 입력을 재현합니다. 결과는 `data/generated`에 생성하고, `data/preprocessed`의 보관본과 열 순서·행 수·값을 대조합니다. 보관본과 운영 모델은 자동으로 덮어쓰지 않습니다. 재생성된 최종 데이터를 직접 사용하려면 다음과 같이 실행합니다.
+파이프라인은 2021년 제공 원본에서 모델 입력을 생성합니다. 중간 단계는 메모리에서 처리하며 중간 CSV를 저장하지 않습니다. 기본 출력은 서버가 사용하는 `data/preprocessed/final_input_data.csv`입니다. 기존 최종 파일이 있으면 열·행·값 일치를 검증한 뒤 교체하며, 검증 실패 시 기존 파일을 유지합니다. 모델은 변경하지 않습니다.
+
+다른 위치에 결과를 저장하려면:
 
 ```sh
-DATA_PATH='data/generated/final_input_data.csv' npm start
+python3 pipeline/rebuild_data.py --output /tmp/final_input_data.csv
 ```
 
 처리 순서:
@@ -145,7 +140,7 @@ DATA_PATH='data/generated/final_input_data.csv' npm start
 6. 원본에서 시간 주기·요일·월·분·이전 1시간 표준편차를 재구성하여 최종 선정 입력과 결합합니다. 이 단계는 기존 HS 파일을 읽지 않습니다.
 7. 기존 모델과 동일한 시간 표기, 표본 제거, 학습/시험 및 경계 제외 구분을 적용해 24,190행·35개 입력 변수로 구성합니다.
 
-`pipeline/features.py`는 기존 최종 입력 생성 로직의 재현 함수입니다. 그 안의 HS 컨텍스트 재구성은 앞선 누적 중앙값 처리 방식도 포함하지만, 현재 선정된 HS 변수에는 날씨·생산 컨텍스트가 포함되지 않습니다. 실제 모델에 입력되는 BG 풍속·강수량은 위의 협의한 대체값을 사용합니다. 이 파이프라인은 역사 데이터 재현용이며 새 연도 달력이나 새로운 결측·센서 포맷을 자동 처리하는 온라인 파이프라인은 아닙니다.
+`pipeline/features.py`는 원본에서 최종 입력을 만드는 공통 함수입니다. 그 안의 HS 컨텍스트 재구성은 앞선 누적 중앙값 처리 방식도 포함하지만, 현재 선정된 HS 변수에는 날씨·생산 컨텍스트가 포함되지 않습니다. 실제 모델에 입력되는 BG 풍속·강수량은 위의 협의한 대체값을 사용합니다. 이 파이프라인은 역사 데이터 재현용이며 새 연도 달력이나 새로운 결측·센서 포맷을 자동 처리하는 온라인 파이프라인은 아닙니다.
 
 `bundle_manifest.json`에는 포함된 원본·전처리·모델 파일의 상대 경로와 SHA-256을 기록했습니다.
 
@@ -161,4 +156,4 @@ DATA_PATH='data/generated/final_input_data.csv' npm start
 
 ## 저장소 구성
 
-`node_modules`, `dist`, Python 캐시, `data/generated`, `optimization/output`은 재생성 가능한 로컬 산출물로 Git에서 제외합니다. `npm run dev`가 화면을 빌드한 뒤 서버를 시작합니다. `screenshots`와 `VERIFICATION.md`는 개발 과정의 검증 기록입니다.
+`node_modules`, `dist`, Python 캐시, `optimization/output`은 재생성 가능한 로컬 산출물로 Git에서 제외합니다. `npm run dev`가 화면을 빌드한 뒤 서버를 시작합니다. `screenshots`와 `VERIFICATION.md`는 개발 과정의 검증 기록입니다.
