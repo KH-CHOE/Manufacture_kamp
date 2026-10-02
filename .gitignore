@@ -25,3 +25,6 @@ Function/_pred_*.npz
 Function/_res_*.json
 Function/test_year_*.csv
 Function/processed_2022*
+
+# 중단 후 재개용 시드별 학습 결과
+Function/_net_cache/

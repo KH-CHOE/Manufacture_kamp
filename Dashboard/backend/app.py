@@ -86,6 +86,7 @@ class TariffRates(BaseModel):
 
 
 class StaffingSpec(BaseModel):
+    planned_production: float = Field(ge=0, le=1000000, allow_inf_nan=False)
     day: str
     cursor: int = Field(48, ge=0)
     unit_price: float | None = Field(None, ge=0, le=1000000, allow_inf_nan=False)
@@ -99,7 +100,7 @@ class StaffingSpec(BaseModel):
 def _staffing(spec: StaffingSpec):
     try:
         return S.staffing(
-            spec.day, spec.cursor, unit_price=spec.unit_price, day_wage=spec.day_wage,
+            spec.day, spec.cursor, planned_production=spec.planned_production, unit_price=spec.unit_price, day_wage=spec.day_wage,
             energy_rate=spec.energy_rate,
             rate_table=spec.rate_table.model_dump() if spec.rate_table else None,
             base_rate=spec.base_rate, billing_peak=spec.billing_peak)
@@ -110,13 +111,13 @@ def _staffing(spec: StaffingSpec):
 
 
 @app.get("/api/optimization")
-def default_staffing(day: str, cursor: int = Query(48, ge=0),
+def default_staffing(day: str, planned_production: float = Query(..., ge=0, le=1000000), cursor: int = Query(48, ge=0),
                      unit_price: float | None = Query(None, ge=0, le=1000000),
                      day_wage: float | None = Query(None, gt=0, le=1000000),
                      energy_rate: float | None = Query(None, ge=0, le=100000),
                      base_rate: float | None = Query(None, ge=0, le=1000000),
                      billing_peak: float | None = Query(None, ge=0, le=1000000)):
-    return _staffing(StaffingSpec(day=day, cursor=cursor, unit_price=unit_price,
+    return _staffing(StaffingSpec(day=day, planned_production=planned_production, cursor=cursor, unit_price=unit_price,
                                   day_wage=day_wage, energy_rate=energy_rate,
                                   base_rate=base_rate, billing_peak=billing_peak))
 

@@ -23,6 +23,8 @@ function loadFlags():SaveFlags{
  return {unitPrice:typeof flags?.unitPrice==='boolean'?flags.unitPrice:true,dayWage:typeof flags?.dayWage==='boolean'?flags.dayWage:true,billingPeak:typeof flags?.billingPeak==='boolean'?flags.billingPeak:true};
 }
 export function Optimization({snapshot:s,pending}:{snapshot:Snapshot;pending:boolean}){
+ const [production,setProduction]=useState('');
+ const [planned,setPlanned]=useState<number|null>(null);
  const [initial]=useState(loadSettings);
  const [applied,setApplied]=useState<Settings>(initial);
  const [profit,setProfit]=useState(String(initial.unitPrice));
@@ -34,14 +36,14 @@ export function Optimization({snapshot:s,pending}:{snapshot:Snapshot;pending:boo
  const [notice,setNotice]=useState('');
  const [plan,setPlan]=useState<Plan|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[reload,setReload]=useState(0);
  useEffect(()=>{
-  if(pending){setPlan(null);return;}
+  if(pending||planned===null){setPlan(null);setBusy(false);return;}
   const controller=new AbortController();setBusy(true);setError('');
-  fetch('/api/optimization',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({day:s.day,cursor:s.cursor,unit_price:applied.unitPrice,day_wage:applied.dayWage,rate_table:applied.rates,base_rate:applied.baseRate,billing_peak:applied.billingPeak}),signal:controller.signal})
-   .then(async r=>{const data=await r.json();if(!r.ok)throw new Error(typeof data.detail==='string'?data.detail:'인력 추천을 불러오지 못했습니다.');return data as Plan;})
+  fetch('/api/optimization',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({day:s.day,cursor:s.cursor,planned_production:planned,unit_price:applied.unitPrice,day_wage:applied.dayWage,rate_table:applied.rates,base_rate:applied.baseRate,billing_peak:applied.billingPeak}),signal:controller.signal})
+   .then(async r=>{const data=await r.json();if(!r.ok)throw new Error(typeof data.detail==='string'?data.detail:'참고 비용을 불러오지 못했습니다.');return data as Plan;})
    .then(setPlan).catch(e=>{if(e.name!=='AbortError'){setError(e.message);setPlan(null);}})
    .finally(()=>{if(!controller.signal.aborted)setBusy(false);});
   return()=>controller.abort();
- },[s.day,s.cursor,pending,reload,applied]);
+ },[s.day,s.cursor,pending,reload,applied,planned]);
  const changeRate=(season:Season,band:Band,value:string)=>setRates(r=>({...r,[season]:{...r[season],[band]:value}}));
  const applyInputs=(event:React.FormEvent<HTMLFormElement>)=>{
   event.preventDefault();
@@ -58,11 +60,19 @@ export function Optimization({snapshot:s,pending}:{snapshot:Snapshot;pending:boo
  };
  const ready=plan&&plan.asOf===s.time&&!pending;
  return <div className="resource-page">
+  <form className="panel planning-plan" onSubmit={e=>{e.preventDefault();const q=Number(production);if(production.trim()&&Number.isFinite(q)&&q>=0&&q<=1000000){setPlanned(q);setReload(r=>r+1);}}}>
+   <div className="planning-plan-fields"><label htmlFor="planned-production">계획 생산량 (계산 대상 1시간)</label>
+   <input id="planned-production" type="number" min="0" max="1000000" step="0.01" required value={production} onChange={e=>setProduction(e.target.value)}/>
+   <span>개</span><button className="primary" type="submit" disabled={busy||pending}>계획 적용</button></div>
+   <p>미래 실적을 사용하지 않습니다. 입력한 계획은 다른 시점에서도 유지됩니다.</p>
+   <p>인원은 과거 생산량÷전력 합으로 만든 참고 가정입니다. 실제 배치 인원이나 필요한 최소 인원을 뜻하지 않습니다.</p>
+   <p>전력량 비용은 다음 15분 예측 전력이 1시간 유지된다고 가정합니다.</p>
+  </form>
   {error&&<div className="error-banner" role="alert">{error}<button onClick={()=>setReload(r=>r+1)} disabled={busy||pending}>다시 불러오기</button></div>}
-  {!ready?<div className="loading" aria-live="polite">{busy||pending?'실적 목표에 맞는 인력을 계산하고 있어요.':'관제 탭에서 다른 시점을 선택해주세요.'}</div>:<>
-   <section className="resource-summary planning-summary" aria-label="인력 추천 요약">
-    <div><span>실적 목표</span><strong>{num(plan.production,2)}<small>개</small></strong><p>{clock(plan.intervalStart)}~{clock(plan.intervalEnd)} · {plan.dayType}</p></div>
-    <div className="recommended-metric"><span>현재 추천 인원</span><strong className="blue-text">{plan.recommendedStaff??'미산정'}<small>{plan.recommendedStaff===null?'':'명'}</small></strong><p>{clock(plan.intervalStart)}~{clock(plan.intervalEnd)} · {plan.dayType}</p></div>
+  {!ready?<div className="loading" aria-live="polite">{busy||pending?'입력한 계획의 참고 비용을 계산하고 있어요.':planned===null?'계획 생산량을 입력해주세요.':'관제 탭에서 다른 시점을 선택해주세요.'}</div>:<>
+   <section className="resource-summary planning-summary" aria-label="비용 가정 요약">
+    <div><span>계획 생산량</span><strong>{num(plan.production,2)}<small>개</small></strong><p>{clock(plan.intervalStart)}~{clock(plan.intervalEnd)} · {plan.dayType}</p></div>
+    <div className="recommended-metric"><span>참고 가정 인원</span><strong className="blue-text">{plan.recommendedStaff??'미산정'}<small>{plan.recommendedStaff===null?'':'명'}</small></strong><p>{clock(plan.intervalStart)}~{clock(plan.intervalEnd)} · {plan.dayType}</p></div>
    </section>
    <div className="planning-grid">
     <form className="panel planning-inputs" onSubmit={applyInputs}>
@@ -89,7 +99,7 @@ export function Optimization({snapshot:s,pending}:{snapshot:Snapshot;pending:boo
       <div><dt>기본요금 1시간 배분</dt><dd>{won(plan.optimized.baseAllocated)}</dd></div>
       <div className="ledger-total"><dt>예상 운영비</dt><dd className="danger-text">{won(plan.optimized.total)}</dd></div>
      </dl>
-     <div className="planning-remainder"><span>시간당 영업 이익</span><strong className={plan.economics.remainder!==null&&plan.economics.remainder<0?'danger-text':plan.economics.remainder!==null&&plan.economics.remainder>0?'blue-text':''}>{won(plan.economics.remainder)}</strong></div>
+     <div className="planning-remainder"><span>가정 조건의 시간당 잔액</span><strong className={plan.economics.remainder!==null&&plan.economics.remainder<0?'danger-text':plan.economics.remainder!==null&&plan.economics.remainder>0?'blue-text':''}>{won(plan.economics.remainder)}</strong></div>
     </section>
    </div>
    <TariffTable draft={rates} baseRate={baseRate} onBaseChange={setBaseRate} onChange={changeRate} onSubmit={applyInputs} busy={busy||pending}/>

@@ -201,12 +201,15 @@ def main() -> int:
                            cwd=HERE, capture_output=True, text=True)
         ok("시험 자료 생성", r.returncode == 0, r.stderr.strip()[:80])
     r = subprocess.run([sys.executable, "-B", "preprocessing.py", "--raw", str(tf),
-                        "--out", str(HERE / "processed_2022.csv")],
+                        "--out", str(HERE / "processed_2022.csv"), "--no-calendar"],
                        cwd=HERE, capture_output=True, text=True)
     ok("달력 자료 없이도 전처리가 끝난다", r.returncode == 0, r.stderr.strip()[:120])
     m2p = HERE / "processed_2022_manifest.json"
     if m2p.exists():
         m2 = json.loads(m2p.read_text("utf-8"))
+        ok("공휴일 자료를 실제로 사용하지 않았다", m2["달력자료"] is None)
+        year_rows = pd.read_csv(HERE / "processed_2022.csv")
+        ok("다른 해에도 학습·시험 구간이 모두 있다", set(year_rows.split) == {"train", "test"})
         d2 = set(m2["제외한열"])
         ok("지어낸 파생 열(설비효율)을 잡았다", "설비효율" in d2)
         ok("지어낸 달력 열(요율구간)을 잡았다", "요율구간" in d2)

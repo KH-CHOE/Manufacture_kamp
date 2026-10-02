@@ -52,7 +52,7 @@ Windows PowerShell 명령은 루트 README에 있다.
 
 ```bash
 npm run prepare:data     # ../Function/preprocessing.py
-npm run train:model      # ../Function/modeling.py --models et
+npm run train:model      # 전체 모델 재학습·비교·결합 결과 갱신
 ```
 
 현재 트리 모델은 **scikit-learn 1.2.2** 형식이다. 환경 버전만 올리면 읽지 못할 수 있으므로
@@ -64,10 +64,11 @@ npm run train:model      # ../Function/modeling.py --models et
 |---|---|
 | `GET /api/meta` | 재생 가능일·모델 정보·시험 구간 성능 |
 | `GET /api/snapshot?day&cursor&threshold` | 그 시점의 실측·예측·경보·임계값 |
-| `GET·POST /api/optimization` | 그 시간의 최소 인원과 비용 |
+| `GET·POST /api/optimization` | 계획 생산량에 따른 참고 인원·비용 가정 |
 | `POST /api/scenario` | 생산량·인원을 바꿔 비용 비교 |
 
-응답 모양은 예전 판과 같다. 프런트엔드(`src/`)는 그대로 가져왔다.
+`/api/optimization`은 `planned_production`(해당 시간의 계획 생산량)을 필수로 받는다.
+미래 실적을 자동 사용하지 않으며, 화면에서 계획을 입력한 뒤 적용한다.
 
 ## 알아 둘 것
 
@@ -78,11 +79,12 @@ npm run train:model      # ../Function/modeling.py --models et
 비용은 인원·단가에 따라 정상적으로 달라진다.
 지금 화면은 `/api/scenario` 를 부르지 않는다.
 
-**지금 쓰는 모델은 ExtraTrees + GRU 앙상블이다**(전진검증 47.43 · 시험 45.54).
+**기본 화면은 ExtraTrees + GRU의 고정 결합 예측을 사용한다.** 현재 점수는 `Model/results.json`에서 확인한다.
 `Model/model_et.joblib` 과 `Model/model_gru.pt` 를 둘 다 읽어 **고정 반반**으로 섞는다.
 
-`model_gru.pt` 가 없거나 예전 형식이면 **트리만으로 서빙하고 그 사실을 알린다**
-(ExtraTrees 단독 49.32 / 54.95). 조용히 다른 모델로 바뀌지 않는다.
+모델의 파일 지문과 scikit-learn 버전을 `Model/manifest.json`과 대조한다.
+존재하는 GRU 파일이 잘못됐거나 추론에 실패하면 서버 시작을 중단한다.
+GRU 파일 자체가 없으면 트리만 사용하며 `/api/meta`에 실제 구성을 표시한다.
 
 > **순환신경망 추론은 시드 3개를 모두 돌려 평균한다.** 보고 수치가 시드평균이므로
 > 첫 시드만 쓰면 다른 값이 나온다. 표준화 통계도 저장된 것을 쓴다 — 추론 자료로 다시
@@ -90,3 +92,6 @@ npm run train:model      # ../Function/modeling.py --models et
 >
 > **순환신경망 추론은 별도 프로세스로 실행한다.** `Function/serving.py`가 현재 Python 환경으로
 > `Function/net_infer.py`를 호출해 예측을 받아 온다. sklearn과 torch의 OpenMP 충돌을 피하기 위한 구성이다.
+
+인원은 실제 배치 인원이 아니라 원자료의 `생산량÷전력 합`에서 만든 참고 가정이다.
+필요한 최소 인원이라고 해석하지 않는다. 전력 비용도 다음 15분 예측이 한 시간 유지된다는 가정이다.

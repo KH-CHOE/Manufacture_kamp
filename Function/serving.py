@@ -23,7 +23,6 @@ import hashlib
 import json
 import sys
 from pathlib import Path
-from threading import Lock
 
 import joblib
 import numpy as np
@@ -33,7 +32,6 @@ import config as C
 from optimization import StaffingOptimizer
 
 HERE = Path(__file__).resolve().parent
-_lock = Lock()
 _state: dict = {}
 
 # 전처리 결과의 열 → 화면 계약의 이름
@@ -82,8 +80,12 @@ def load(model_path: Path | None = None, data_path: Path | None = None,
 
     model_path = Path(model_path or C.MODEL_DIR / "model_et.joblib")
     data_path = Path(data_path or C.OUT_DEFAULT)
+    explicit_net = net_path is not None
     net_path = Path(net_path) if net_path else C.MODEL_DIR / "model_gru.pt"
+    use_net = net_path.exists() and (model_path.name == "model_et.joblib" or explicit_net)
     w = C.BLEND_WEIGHT if blend is None else float(blend)
+    if not np.isfinite(w) or not 0 <= w <= 1:
+        raise ValueError("결합 가중치는 0과 1 사이의 유한한 값이어야 합니다")
     if not model_path.exists():
         raise FileNotFoundError(
             f"모델 파일이 없다: {model_path}\n"
@@ -92,6 +94,8 @@ def load(model_path: Path | None = None, data_path: Path | None = None,
         raise FileNotFoundError(
             f"전처리 결과가 없다: {data_path}\n  python Function/preprocessing.py 를 먼저 돌려라")
 
+    from artifacts import validate
+    validate(model_path, net_path if use_net else None)
     bundle = joblib.load(model_path)      # 우리가 만든 파일만 올린다
     if not isinstance(bundle, dict) or not {"estimator", "features"} <= bundle.keys():
         raise ValueError("모델 묶음에 estimator 와 features 가 있어야 한다")
@@ -101,7 +105,7 @@ def load(model_path: Path | None = None, data_path: Path | None = None,
     # 학습 때의 교착과는 다른 증상이지만 뿌리는 같다 — libomp 가 두 번 올라가는 것.
     _single_thread(bundle["estimator"])
 
-    d = pd.read_csv(data_path, parse_dates=["ts"])
+    d = M.load(data_path)
     missing = [c for c in list(bundle["features"]) + ["ts", "split", "kW", "y"]
                if c not in d.columns]
     if missing:
@@ -125,7 +129,7 @@ def load(model_path: Path | None = None, data_path: Path | None = None,
     optimizer = StaffingOptimizer()
 
     net_info, net_pred, mode = None, None, "tree"
-    if net_path.exists():
+    if use_net:
         net_info, net_pred = _net_from_subprocess(net_path, data_path, test_pos)
         if net_pred is not None:
             mode = "ensemble"
@@ -151,7 +155,7 @@ def load(model_path: Path | None = None, data_path: Path | None = None,
         groups={k: g.reset_index(drop=True) for k, g in f.groupby("day_key")},
         optimizer=optimizer, model_path=model_path, data_path=data_path,
         net_path=net_path if net_info else None,
-        version=hashlib.sha256(model_path.read_bytes()).hexdigest()[:10])
+        version=hashlib.sha256(model_path.read_bytes() + (net_path.read_bytes() if net_info else b"")).hexdigest()[:10])
     return _state
 
 
@@ -175,18 +179,17 @@ def _net_from_subprocess(net_path: Path, data_path: Path,
             cwd=HERE, capture_output=True, text=True)
         if r.returncode != 0 or not out.exists():
             msg = (r.stdout + r.stderr).strip().splitlines()
-            print(f"주의 — 순환신경망 추론에 실패해 트리만 쓴다.\n  "
-                  + "\n  ".join(msg[-3:] if msg else ["(출력 없음)"]))
-            return None, None
+            raise ValueError("순환신경망 추론 실패: " + "\n".join(msg[-3:]))
         z = np.load(out)
         where, pred = z["where"], z["pred"]
         info = json.loads(str(z["info"])) if "info" in z.files else {}
         info["path"] = net_path.name
 
     if not np.array_equal(where, test_pos):
-        print("주의 — 순환신경망이 예측한 행이 화면이 쓰는 행과 다르다. 트리만 쓴다.")
-        return None, None
+        raise ValueError("순환신경망과 트리 예측 행이 다릅니다")
 
+    if pred.shape != (len(test_pos),) or not np.isfinite(pred).all():
+        raise ValueError("순환신경망 예측값이 유효하지 않습니다")
     return info, pred
 
 
@@ -266,7 +269,7 @@ def snapshot(day: str, cursor: int = 48, threshold: float | None = None) -> dict
             "atRisk": bool(row["prediction"] >= threshold), "recommendation": rec,
             "dailyPeak": num(hist["현재전력"].max()), "points": points, "alerts": alerts,
             "timeline": [iso(t) for t in data["forecast_time"]],
-            "context": {k: num(row[k]) for k in CONTEXT}}
+            "context": {k: num(row["생산량_lag4"] if k == "생산량" else row[k]) for k in CONTEXT}}
 
 
 def scenario(day: str, cursor: int, production: float, staff: int, hourly_wage: float,
@@ -285,13 +288,11 @@ def scenario(day: str, cursor: int, production: float, staff: int, hourly_wage: 
     data = _day(day)
     if cursor >= len(data):
         raise ValueError("재생 위치가 날짜 범위를 벗어났습니다.")
-    row = data.iloc[[cursor]].copy()
-    row["생산량"] = production
-    with _lock:
-        pred = float(_state["bundle"]["estimator"].predict(row[_state["bundle"]["features"]])[0])
-    if not np.isfinite(pred):
-        raise ValueError("모델이 유효한 값을 반환하지 않았습니다.")
+    # 생산량은 현재 모델의 입력이 아니다. 화면과 같은 결합 예측을 유지한다.
+    if any("생산" in c for c in _state["bundle"]["features"]):
+        raise ValueError("생산량 입력 모델의 조건 변경 계산은 지원하지 않습니다")
     base = float(data.iloc[cursor]["prediction"])
+    pred = base
 
     def costs(power, n):
         return {"energy": round(max(0, power) * power_factor * .25 * energy_rate),
@@ -314,7 +315,7 @@ def scenario(day: str, cursor: int, production: float, staff: int, hourly_wage: 
 
 
 def staffing(day: str, cursor: int = 48, **over) -> dict:
-    """정시 직전 45분 예측으로 그 시간의 최소 인원과 비용을 낸다."""
+    """정시 직전 예측과 사용자 계획 생산량으로 참고 비용을 계산한다."""
     data = _day(day)
     cursor = min(cursor, len(data) - 1)
     now = data.iloc[cursor]["forecast_time"]

@@ -44,3 +44,9 @@
 .tariff-meta{text-align:right}.tariff-meta small{display:block;margin-top:6px;font-size:12px}
 
 .planning-inputs>.planning-factors{grid-auto-rows:auto;row-gap:32px}.planning-inputs>.planning-factors>div{min-height:0}.planning-inputs .planning-factors>div>:last-child{margin-bottom:0}.planning-inputs .planning-lower{margin-top:32px}
+
+.planning-plan{padding:22px 26px;margin-bottom:20px}
+.planning-plan-fields{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.planning-plan-fields label{font-weight:700}
+.planning-plan-fields input{width:150px;padding:10px 12px;border:1px solid #d7dfeb;border-radius:8px;font:inherit}
+.planning-plan p{font-size:13px;line-height:1.65;color:#65758b;margin:10px 0 0}

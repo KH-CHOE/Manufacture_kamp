@@ -1,0 +1,71 @@
+{
+  "schema": 2,
+  "configuration": {
+    "tree_features": [
+      "kw_lag1",
+      "kw_lag2",
+      "kw_lag3",
+      "kw_lag4",
+      "kw_lag8",
+      "kw_lag96",
+      "과거전력_16칸",
+      "kw_d1",
+      "kw_d2",
+      "kw_roll4",
+      "kw_roll16",
+      "kw_std4",
+      "전력변화_2시간",
+      "전력변화_4시간",
+      "최근2시간_전력평균",
+      "최근2시간_전력최대",
+      "최근4시간_전력평균",
+      "최근4시간_전력최대",
+      "시간",
+      "15분위치",
+      "dow",
+      "is_weekend",
+      "is_day_shift",
+      "tod_sin",
+      "tod_cos"
+    ],
+    "net_calendar": [
+      "tod_sin",
+      "tod_cos",
+      "dow_sin",
+      "dow_cos",
+      "is_off",
+      "days_since_active"
+    ],
+    "window": 96,
+    "steps": 24,
+    "blend_weight": 0.5
+  },
+  "source_sha256": {
+    "config.py": "03e28a9a34c3e2ac8f559ebf391df81ff24d5413357d1b5414a738917d12f129",
+    "preprocessing.py": "a4231f0749cab081763fc456aa1d3afce03d5cade9cf7935ba258735cf5751d2",
+    "modeling.py": "6fbf9e2653af6ede3bc5be2fd13f87f41f4f54d5f1e050fcef623a091426cec2",
+    "net_infer.py": "d12337ac9f6a0faa1f6bb959169a6a0f6a95bc8f0388e9caded0041acd4b5e4a"
+  },
+  "data_sha256": "32cdb5e173baad0ff4f55654041e15313dde423405879ebb779a984943f326da",
+  "test_rows_sha256": "18a062fcf53b0d8b1e2f5fcf46d3e7efa5b5ff4623a31198efcbf4c7d9c92ca1",
+  "files": {
+    "model_rf.joblib": "0a450c16668a1a83618de1fedcdde9e2cf9f70992e340df2019a241d004d2a76",
+    "model_et.joblib": "b49b74dc4cd221d7bc00fde87f6ebdde419d6a221c3c711073e585a4edec4531",
+    "model_hgb.joblib": "ef79c79fe187b30a63d9400eaa9f1cc25b3d71bea31f64391d644d4c6a646a8f",
+    "model_gru.pt": "169c5c123034186376607835387506f2c63c4aad0547b19cf936b6e9c1f27c6e",
+    "model_lstm.pt": "b7f21e8fe958ee3088ecd663ab8b1b10531b063d95a3fa706f8e14c1b01deb21",
+    "results.json": "ed93920dc48882433bd71ab428746c054d32dd814958da48dc705a6994fc9d2e"
+  },
+  "python": "3.11.7",
+  "packages": {
+    "numpy": "1.26.4",
+    "pandas": "2.2.2",
+    "scikit-learn": "1.2.2",
+    "scipy": "1.17.1",
+    "torch": "2.4.1",
+    "joblib": "1.4.2"
+  },
+  "window_rule": "original observation axis; finite continuous 96 observations",
+  "normalization": "first 85% training rows only; validation excluded",
+  "ensemble": true
+}

@@ -3,7 +3,7 @@
 왜 이렇게 나눴나
 ----------------
 `preprocessing.py` 가 만든 CSV 한 장을 모든 모델이 읽는다. 트리는 열을 골라 쓰고
-순환신경망은 같은 파일에서 창을 만든다. **입력이 같으니 차이는 모형에서만 온다.**
+순환신경망은 같은 파일에서 창을 만든다. 평가행은 같지만 입력 변수·학습 기간·학습 예산은 다르므로 알고리즘 자체의 우열을 뜻하지 않는다.
 
 비교 대상
   기준선     직전값 유지 · 시각×요일 중앙값          (학습 없음)
@@ -70,12 +70,31 @@ def load(path: Path) -> pd.DataFrame:
 
 def window_ok(d: pd.DataFrame, win: int) -> np.ndarray:
     """창이 시각 공백을 넘지 않는 행만 True. 넘으면 '15분 전' 이 실제로는 며칠 전이다."""
-    ts = pd.DatetimeIndex(d["ts"])
     ok = np.zeros(len(d), bool)
-    span = pd.Timedelta(minutes=C.STEP_MIN * (win - 1))
-    valid = (ts[win - 1:] - ts[:len(ts) - win + 1]) == span
-    ok[np.arange(win - 1, len(d))] = valid
+    if len(d) < win:
+        return ok
+    ts = pd.DatetimeIndex(d["ts"])
+    if ts.hasnans or not ts.is_unique or not ts.is_monotonic_increasing:
+        raise ValueError("시각은 결측·중복 없이 오름차순이어야 합니다")
+    step = pd.Timedelta(minutes=C.STEP_MIN)
+    edges = np.r_[True, np.diff(ts.asi8) == step.value]
+    finite = np.isfinite(d["kW"].to_numpy(float))
+    from numpy.lib.stride_tricks import sliding_window_view
+    ok[win - 1:] = (sliding_window_view(edges, win)[:, 1:].all(axis=1)
+                       & sliding_window_view(finite, win).all(axis=1))
     return ok
+
+
+def net_windows(d: pd.DataFrame, mask: np.ndarray, win: int, steps: int):
+    """원래 관측축에서 창을 만들고 공통 평가행의 끝점만 선택한다."""
+    from numpy.lib.stride_tricks import sliding_window_view
+    endpoints = np.flatnonzero(mask)
+    if not window_ok(d, win)[endpoints].all():
+        raise ValueError("시각 공백 또는 결측을 포함하는 신경망 입력 창")
+    if len(endpoints) == 0:
+        return np.empty((0, steps, win // steps), np.float32)
+    windows = sliding_window_view(d["kW"].to_numpy(np.float32), win)
+    return windows[endpoints - win + 1].reshape(-1, steps, win // steps)
 
 
 def usable(d: pd.DataFrame) -> np.ndarray:
@@ -85,7 +104,17 @@ def usable(d: pd.DataFrame) -> np.ndarray:
     if miss:
         raise SystemExit(f"✗ 모델 입력 열이 전처리 결과에 없다: {miss}\n"
                          f"  preprocessing.py 를 다시 돌렸는지 확인해라")
-    return d[cols].notna().all(axis=1).to_numpy() & window_ok(d, C.NET["window"])
+    return np.isfinite(d[cols].to_numpy(float)).all(axis=1) & window_ok(d, C.NET["window"])
+
+
+def training_stats(X, Y, training_indices):
+    """뒤 15%는 조기종료 검증용. 표준화에는 앞 85%만 사용한다."""
+    cut = int(len(training_indices) * .85)
+    fit = training_indices[:cut]
+    if not len(fit) or cut == len(training_indices):
+        raise ValueError("신경망 학습/조기종료 검증 자료가 부족합니다")
+    return (cut, X[fit].mean(), X[fit].std() + 1e-8,
+            Y[fit].mean(), Y[fit].std() + 1e-8)
 
 
 def folds_from_data(d: pd.DataFrame, n: int, days: int) -> list[list[int]]:
@@ -156,7 +185,7 @@ def run_trees(d: pd.DataFrame, folds: list[list[int]], want: list[str]) -> dict:
 
     def make(kind: str):
         if kind == "rf":
-            return RandomForestRegressor(**C.TREE)
+            return RandomForestRegressor(**C.RF)
         if kind == "et":
             return ExtraTreesRegressor(**C.TREE)
         return HistGradientBoostingRegressor(**C.BOOST)
@@ -188,11 +217,12 @@ def run_trees(d: pd.DataFrame, folds: list[list[int]], want: list[str]) -> dict:
 
 
 # ══ 순환 계열 (torch 전용 프로세스) ═════════════════════════════════
-def run_nets(d: pd.DataFrame, folds: list[list[int]], want: list[str]) -> dict:
+def run_nets(original: pd.DataFrame, folds: list[list[int]], want: list[str],
+             data_path: Path, job_spec=None, cache_dir: Path | None = None) -> dict:
     import torch
     from torch import nn
     from numpy.lib.stride_tricks import sliding_window_view
-    torch.set_num_threads(4)
+    torch.set_num_threads(1)
     g = C.NET
 
     class Net(nn.Module):
@@ -208,12 +238,10 @@ def run_nets(d: pd.DataFrame, folds: list[list[int]], want: list[str]) -> dict:
             return self.head(torch.cat([o[:, -1, :], c], 1)).squeeze(-1)
 
     win, steps = g["window"], g["steps"]
-    kw = d["kW"].to_numpy(np.float32)
-    # sliding_window_view 의 i 번째 창은 행 i+win-1 에서 끝난다.
-    # 창 96칸을 (24시간 × 4구간) 으로 접어 넣는다 — 한 걸음이 한 시간이다
-    X = sliding_window_view(kw, win).reshape(-1, steps, win // steps)
-    idx = np.arange(win - 1, len(d))
-    X = X[:len(idx)]
+    mask = usable(original)
+    X = net_windows(original, mask, win, steps)
+    d = original[mask].reset_index(drop=True)
+    idx = np.arange(len(d))
     Y = d["y"].to_numpy(np.float32)[idx]
     CAL = d[C.NET_CALENDAR].to_numpy(np.float32)[idx]
     day = d["date_key"].to_numpy()[idx]
@@ -222,12 +250,12 @@ def run_nets(d: pd.DataFrame, folds: list[list[int]], want: list[str]) -> dict:
         torch.manual_seed(seed); np.random.seed(seed)
         tr_m = (day >= start) & (day < split_day)
         te_m = (day >= split_day) if hi is None else ((day >= split_day) & (day < hi))
-        mu, sd = X[tr_m].mean(), X[tr_m].std() + 1e-8
-        ymu, ysd = Y[tr_m].mean(), Y[tr_m].std() + 1e-8
+        ti = np.where(tr_m)[0]
+        cut, mu, sd, ymu, ysd = training_stats(X, Y, ti)
+        fit = ti[:cut]
         Xn = ((X - mu) / sd).astype(np.float32)
         Yn = ((Y - ymu) / ysd).astype(np.float32)
-        ti = np.where(tr_m)[0]
-        cut = int(len(ti) * 0.85)
+        print(f"  시작 {kind} {split_day} seed={seed} fit={len(fit)} val={len(ti)-cut}", flush=True)
         xt = torch.from_numpy(np.ascontiguousarray(Xn[ti[:cut]]))
         yt = torch.from_numpy(Yn[ti[:cut]])
         ct = torch.from_numpy(CAL[ti[:cut]])
@@ -253,6 +281,8 @@ def run_nets(d: pd.DataFrame, folds: list[list[int]], want: list[str]) -> dict:
                 k = perm[i:i + g["batch"]]
                 opt.zero_grad(); lossf(net(xt[k], ct[k]), yt[k]).backward(); opt.step()
             vl = float(np.mean((pred(va) - Y[va]) ** 2))
+            if (ep + 1) % 20 == 0:
+                print(f"    {kind} {split_day} seed={seed} epoch={ep+1} val_MSE={vl:.3f}", flush=True)
             if vl < best - 1e-4:
                 best, bad, state = vl, 0, {k: v.clone() for k, v in net.state_dict().items()}
             else:
@@ -264,8 +294,48 @@ def run_nets(d: pd.DataFrame, folds: list[list[int]], want: list[str]) -> dict:
         # **표준화 통계를 함께 돌려준다.** 이것을 저장하지 않아 `.pt` 만으로는 보고 예측을
         # 되살릴 수 없었다. 추론 때 다시 계산하면 안 된다 — 학습 구간에서 잰 값이어야 한다.
         stats = {"mu": float(mu), "sd": float(sd), "ymu": float(ymu), "ysd": float(ysd),
-                 "train_start": int(start), "train_end": int(split_day)}
+                 "train_start": int(start), "train_end": int(split_day),
+                 "fit_rows": len(fit), "validation_rows": len(va),
+                 "fit_last_time": str(d.iloc[fit[-1]]["ts"]),
+                 "validation_first_time": str(d.iloc[va[0]]["ts"])}
         return net, ei, pred(ei), ep + 1, stats
+
+    # 각 시드 결과를 별도 파일로 보존한다. 중단 후에도 완료한 학습은 재사용한다.
+    import hashlib
+    from concurrent.futures import ThreadPoolExecutor
+    if job_spec is not None:
+        kind, split, hi, seed = job_spec
+        start = int((pd.Timestamp(str(split)) - pd.DateOffset(months=g["train_months"]))
+                    .strftime("%Y%m%d")) if g["train_months"] else 0
+        net, ei, pred, ep, stats = train_one(kind, start, split, hi, seed)
+        destination = cache_dir / f"{kind}_{split}_{seed}.pt"
+        temporary = destination.with_suffix(".tmp")
+        torch.save({"state": net.state_dict(), "ei": ei, "pred": pred,
+                    "epochs": ep, "stats": stats}, temporary)
+        temporary.replace(destination)
+        return {}
+    fingerprint = hashlib.sha256(data_path.read_bytes() + Path(__file__).read_bytes()
+        + json.dumps({"net": g, "seeds": C.SEEDS, "calendar": C.NET_CALENDAR,
+                      "features": C.TREE_FEATURES, "torch": torch.__version__,
+                      "numpy": np.__version__}, sort_keys=True).encode()).hexdigest()[:20]
+    cache_dir = HERE / "_net_cache" / fingerprint
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    tasks = [(kind, split, hi, seed) for split, hi, _ in jobs(d, folds)
+             if (day < split).sum() >= 1500 for kind in want for seed in C.SEEDS]
+
+    def launch(spec):
+        kind, split, _, seed = spec
+        destination = cache_dir / f"{kind}_{split}_{seed}.pt"
+        if destination.exists():
+            print(f"  완료 학습 재사용 {kind} {split} seed={seed}", flush=True)
+            return
+        cmd = [sys.executable, "-B", str(HERE / "modeling.py"), "--data", str(data_path.resolve()),
+               "--only", "nets", "--models", kind, "--net-job", json.dumps(spec),
+               "--cache-dir", str(cache_dir)]
+        subprocess.run(cmd, check=True)
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        list(pool.map(launch, tasks))
 
     res: dict = {k: {} for k in want}
     preds: dict = {k: {} for k in want}
@@ -277,7 +347,10 @@ def run_nets(d: pd.DataFrame, folds: list[list[int]], want: list[str]) -> dict:
         for kind in want:
             ps, eps, nets, stats = [], [], [], None
             for sd_ in C.SEEDS:
-                net, ei, p, ep, st = train_one(kind, start, split, hi, sd_)
+                cached = torch.load(cache_dir / f"{kind}_{split}_{sd_}.pt", map_location="cpu", weights_only=False)
+                net = Net(X.shape[2], CAL.shape[1], g["hidden"], kind)
+                net.load_state_dict(cached["state"])
+                ei, p, ep, st = cached["ei"], cached["pred"], cached["epochs"], cached["stats"]
                 ps.append(p); eps.append(ep); nets.append(net)
                 stats = st            # 시드와 무관하다(학습 구간만으로 정해진다)
             # **시드별 예측을 평균한다.** 시험 성적으로 시드를 고르지 않는다
@@ -338,6 +411,8 @@ def main() -> int:
                     help=f"쉼표로 구분. 가능: {','.join(ALL_MODELS)}")
     ap.add_argument("--only", choices=["trees", "nets"], default=None,
                     help="내부용 — 오케스트레이터가 하위 프로세스로 호출할 때 쓴다")
+    ap.add_argument("--net-job", type=json.loads, help=argparse.SUPPRESS)
+    ap.add_argument("--cache-dir", type=Path, help=argparse.SUPPRESS)
     a = ap.parse_args()
     C.MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -364,10 +439,11 @@ def main() -> int:
               f"{int((rows['split'] == 'test').sum()):,}행\n", flush=True)
 
     res: dict = {}
-    tree_want = [m for m in want if m in TREE_MODELS] or (
-        ["et"] if "ensemble" in want else [])
-    net_want = [m for m in want if m in NET_MODELS] or (
-        ["gru"] if "ensemble" in want else [])
+    tree_want = [m for m in want if m in TREE_MODELS]
+    net_want = [m for m in want if m in NET_MODELS]
+    if "ensemble" in want:
+        tree_want = list(dict.fromkeys(tree_want + ["et"]))
+        net_want = list(dict.fromkeys(net_want + ["gru"]))
 
     if a.only == "trees":
         print("── 트리 계열 (sklearn 전용 프로세스) ──")
@@ -376,7 +452,9 @@ def main() -> int:
         return 0
     if a.only == "nets":
         print("── 순환 계열 (torch 전용 프로세스) ──")
-        res = run_nets(rows, folds, net_want)
+        res = run_nets(d, folds, net_want, a.data, a.net_job, a.cache_dir)
+        if a.net_job is not None:
+            return 0
         (HERE / "_res_nets.json").write_text(json.dumps(res, ensure_ascii=False), "utf-8")
         return 0
 
@@ -393,7 +471,7 @@ def main() -> int:
             continue
         print()
         cmd = [sys.executable, "-B", str(Path(__file__).name),
-               "--data", str(a.data), "--only", kind,
+               "--data", str(a.data.resolve()), "--only", kind,
                "--models", ",".join(sel + (["ensemble"] if "ensemble" in want else []))]
         r = subprocess.run(cmd, cwd=HERE)
         if r.returncode != 0:
@@ -415,7 +493,7 @@ def main() -> int:
             for split, hi, label in jobs(rows, folds):
                 tk, nk = f"et|{label}", f"gru|{label}"
                 if tk not in T.files or nk not in N.files:
-                    continue
+                    raise ValueError(f"결합에 필요한 예측이 없습니다: {label}")
                 ei = N[f"gru|idx|{label}"]
                 # 두 예측이 같은 행을 가리키는지 확인한다 — 길이만 맞추면 안 된다
                 day = rows["date_key"].to_numpy()
@@ -425,7 +503,7 @@ def main() -> int:
                 if not np.array_equal(tree_rows, net_rows):
                     print(f"  ✗ {label}: 두 예측의 행이 다르다 "
                           f"({len(tree_rows)} vs {len(net_rows)})")
-                    continue
+                    raise ValueError(f"결합 예측의 행 불일치: {label}")
                 y = rows["y"].to_numpy()[tree_rows]
                 b = C.BLEND_WEIGHT * T[tk] + (1 - C.BLEND_WEIGHT) * N[nk]
                 res["ensemble"][label] = {**score(y, b), "rows": int(len(y))}
@@ -434,12 +512,12 @@ def main() -> int:
 
     summary = summarize(res, folds)
     out = {
-        "자료": {"파일": a.data.name, "전처리행": len(d), "공통행": len(rows),
+        "자료": {"파일": a.data.name, "sha256": __import__("hashlib").sha256(a.data.read_bytes()).hexdigest(), "전처리행": len(d), "공통행": len(rows),
                "뺀행": len(d) - len(rows),
                "행기준설명": "모든 모델이 같은 행을 쓴다. 다른 행 기준의 수치와 섞지 말 것",
                "시험행": int((rows["split"] == "test").sum())},
         "전진검증구간": folds,
-        "설정": {"tree": C.TREE, "boost": C.BOOST, "net": C.NET, "seeds": C.SEEDS,
+        "설정": {"tree": C.TREE, "rf": C.RF, "boost": C.BOOST, "net": C.NET, "seeds": C.SEEDS,
                "blend_weight": C.BLEND_WEIGHT,
                "tree_features": C.TREE_FEATURES, "net_calendar": C.NET_CALENDAR},
         "모델별": summary,
@@ -447,7 +525,7 @@ def main() -> int:
         "선정규약": ("전진검증 평균 MSE 로만 고른다. 시험 구간은 선정에 쓰지 않는다. "
                  "순환신경망은 시드 3개 예측 평균으로 보고하고 시험 성적으로 시드를 고르지 않는다"),
         "환경": {"python": platform.python_version(), "numpy": np.__version__,
-               "pandas": pd.__version__},
+               "pandas": pd.__version__, **{k: __import__("importlib.metadata", fromlist=["version"]).version(k) for k in ("scikit-learn", "torch", "joblib")}},
     }
     a.out.write_text(json.dumps(out, ensure_ascii=False, indent=1, default=str), "utf-8")
 
@@ -459,6 +537,11 @@ def main() -> int:
         t = (s["시험"] or {}).get("MSE")
         print(f"{k:24s}{f if f is not None else '—':>10}"
               f"{sd if sd is not None else '—':>8}{t if t is not None else '—':>10}")
+    if set(TREE_MODELS).issubset(res) and set(NET_MODELS).issubset(res):
+        from evaluate_duplicates import evaluate
+        evaluate(a.data, a.out)
+    from artifacts import write_manifest
+    write_manifest(a.data, a.out)
     print(f"\n저장: {a.out.name}")
     return 0
 

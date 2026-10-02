@@ -53,11 +53,22 @@ def main() -> int:
         return float(((y - p) ** 2).mean())
 
     fails = []
+    from artifacts import digest
+    import hashlib
+    manifest = json.loads((C.MODEL_DIR / 'manifest.json').read_text())
+    if digest(C.OUT_DEFAULT) != manifest['data_sha256']:
+        fails.append('평가한 자료와 현재 자료 불일치')
+    if digest(res_path) != manifest['files'].get(res_path.name):
+        fails.append('평가 결과 파일 불일치')
+    row_hash = hashlib.sha256(f.forecast_time.astype(str).str.cat(sep='\n').encode()).hexdigest()
+    if row_hash != manifest['test_rows_sha256']:
+        fails.append('시험 행 시각 불일치')
 
     def check(name, got, ref_key):
         ref = (want.get(ref_key) or {}).get("시험", {}).get("MSE")
         if ref is None:
-            print(f"  ? {name:14s} {got:9.4f}   (results.json 에 {ref_key} 없음 — 건너뜀)")
+            print(f"  ✗ results.json에 {ref_key} 시험 결과가 없습니다")
+            fails.append(name + " 보고 결과 없음")
             return
         ok = abs(got - ref) < TOL
         print(f"  {'✓' if ok else '✗'} {name:14s} {got:9.4f}  vs 보고 {ref:9.4f}"

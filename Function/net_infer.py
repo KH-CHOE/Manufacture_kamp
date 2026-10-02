@@ -49,10 +49,8 @@ def predict(data_path: Path, model_path: Path) -> tuple[np.ndarray, np.ndarray, 
 
     g, st = b["config"], b["stats"]
     win, steps = g["window"], g["steps"]
-    kw = rows["kW"].to_numpy(np.float32)
-    X = sliding_window_view(kw, win).reshape(-1, steps, win // steps)
-    idx = np.arange(win - 1, len(rows))
-    X = X[:len(idx)]
+    X = M.net_windows(d, M.usable(d), win, steps)
+    idx = np.arange(len(rows))
     CAL = rows[b["calendar"]].to_numpy(np.float32)[idx]
     Xn = ((X - st["mu"]) / st["sd"]).astype(np.float32)
 

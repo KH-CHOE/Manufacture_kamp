@@ -30,6 +30,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import platform
 from pathlib import Path
@@ -56,6 +57,11 @@ class Log:
         print(f"  [{step}] {detail}" if detail else f"  [{step}]")
 
 
+def parse_dates(values: pd.Series) -> pd.Series:
+    text = values.astype("string").str.replace(r"\.0$", "", regex=True)
+    return pd.to_datetime(text, format="mixed", errors="coerce")
+
+
 # ══ 02. 스키마 ══════════════════════════════════════════════════════
 def check_schema(raw: pd.DataFrame, log: Log) -> pd.DataFrame:
     need = [C.DATE_COL, C.HOUR_COL, *C.POWER_COLS]
@@ -74,13 +80,15 @@ def check_schema(raw: pd.DataFrame, log: Log) -> pd.DataFrame:
     if (d[C.POWER_COLS] < 0).any().any():
         raise SystemExit("✗ 음수 전력이 있다. 원자료의 부호 정의를 확인해라")
 
-    d["_날짜"] = pd.to_datetime(d[C.DATE_COL].astype(str), format="%Y%m%d", errors="coerce")
+    d["_날짜"] = parse_dates(d[C.DATE_COL])
     bad = d["_날짜"].isna()
     if bad.any():
         log.add("날짜 해석 실패 행 제외", 행수=int(bad.sum()),
                 원본행=d.loc[bad, "_원본행"].tolist()[:20])
         d = d.loc[~bad].copy()
 
+    if d.empty:
+        raise ValueError("해석 가능한 날짜가 없습니다. 날짜 형식을 확인해주세요")
     log.add("스키마 확인", 행=len(d), 열=len(raw.columns),
             맥락열=len(ctx), 없는맥락열=[c for c in C.CONTEXT_COLS if c not in raw.columns])
     return d
@@ -132,7 +140,8 @@ def fix_hour(d: pd.DataFrame, log: Log) -> pd.DataFrame:
             행순서_일치율=round(agree, 6), 임계값=C.ROW_ORDER_AGREEMENT_MIN,
             기준일수=len(ref))
 
-    d["_시"] = pd.to_numeric(d[C.HOUR_COL], errors="coerce").astype("Int64")
+    hours = pd.to_numeric(d[C.HOUR_COL], errors="coerce")
+    d["_시"] = hours.where(np.isfinite(hours) & hours.between(0, 23) & hours.mod(1).eq(0)).astype("Int64")
     incomplete_kept = [k for k in good if not complete[k]]
     if incomplete_kept:
         log.add("행이 빠진 날 — 시 열은 정상이라 그대로 쓴다",
@@ -435,7 +444,7 @@ def add_features(long: pd.DataFrame, cal: dict | None, log: Log) -> pd.DataFrame
         cnt = 0 if act else cnt + 1
     d["days_since_active"] = ts.dt.normalize().map(since).fillna(0).astype(int)
     d["prev_day_active"] = ts.dt.normalize().map(
-        active.shift(1).fillna(True).astype(int)).fillna(1).astype(int)
+        active.shift(1, fill_value=True).astype(int)).fillna(1).astype(int)
 
     # 시간 단위 누적 열은 반드시 지연시킨다 — 그 시간이 끝나야 확정된다
     for c in C.HOURLY_CUMULATIVE:
@@ -452,6 +461,8 @@ def add_features(long: pd.DataFrame, cal: dict | None, log: Log) -> pd.DataFrame
 
 # ══ 10. 분할 ════════════════════════════════════════════════════════
 def add_split(d: pd.DataFrame, split_date: int | None, frac: float, log: Log) -> pd.DataFrame:
+    if not 0 < frac < 1:
+        raise ValueError("시험 비율은 0과 1 사이여야 합니다")
     d["date_key"] = d["ts"].dt.strftime("%Y%m%d").astype(int)
     if split_date is not None:
         boundary = int(split_date)
@@ -461,6 +472,8 @@ def add_split(d: pd.DataFrame, split_date: int | None, frac: float, log: Log) ->
         boundary = int(days[int(len(days) * (1 - frac))])
         how = f"시간 순서 뒤 {frac:.0%} (자동)"
     d["split"] = np.where(d["date_key"] < boundary, "train", "test")
+    if d["split"].nunique() != 2:
+        raise ValueError("분할 뒤 학습과 시험 자료가 모두 있어야 합니다. 달력 연도와 분할 날짜를 확인하세요")
     log.add("분할", 방법=how, 경계=boundary,
             학습=int((d["split"] == "train").sum()),
             시험=int((d["split"] == "test").sum()))
@@ -477,6 +490,8 @@ def run(raw_path: Path, out_csv: Path, calendar: Path | None,
 
     print("\n── 전처리 ──")
     d = check_schema(raw, log)
+    if cal and set(d["_날짜"].dt.year) != {cal.get("year")}:
+        raise ValueError("달력 연도와 원자료 연도가 다릅니다")
     d = fix_hour(d, log)
     d = build_hourly_axis(d, log)
 
@@ -506,8 +521,8 @@ def run(raw_path: Path, out_csv: Path, calendar: Path | None,
     out.to_csv(out_csv, index=False, encoding="utf-8-sig")
 
     man = {
-        "입력": {"파일": raw_path.name, "행": len(raw), "열": list(raw.columns)},
-        "출력": {"파일": out_csv.name, "행": len(out), "열": list(out.columns)},
+        "입력": {"파일": raw_path.name, "sha256": hashlib.sha256(raw_path.read_bytes()).hexdigest(), "행": len(raw), "열": list(raw.columns)},
+        "출력": {"파일": out_csv.name, "sha256": hashlib.sha256(out_csv.read_bytes()).hexdigest(), "행": len(out), "열": list(out.columns)},
         "달력자료": calendar.name if calendar else None,
         "제외한열": dropped,
         "단계": log.steps,
@@ -527,8 +542,9 @@ def main() -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--raw", type=Path, default=C.RAW_DEFAULT, help="원자료 CSV")
     ap.add_argument("--out", type=Path, default=C.OUT_DEFAULT)
-    ap.add_argument("--calendar", type=Path, default=C.CALENDAR_DEFAULT,
-                    help="공휴일·휴무 JSON. 안 주면 주말만으로 is_off 를 만든다")
+    ap.add_argument("--calendar", type=Path, default=None,
+                    help="공휴일 JSON. 생략하면 자료 연도의 calendar_YYYY.json을 찾는다")
+    ap.add_argument("--no-calendar", action="store_true", help="달력을 쓰지 않고 주말과 자동 분할만 사용")
     ap.add_argument("--split-date", type=int, default=None,
                     help="YYYYMMDD. 안 주면 시간 순서 뒤 비율로 자동 분할")
     ap.add_argument("--test-frac", type=float, default=C.DEFAULT_TEST_FRACTION)
@@ -536,6 +552,16 @@ def main() -> int:
     if not a.raw.exists():
         print(f"✗ 원자료가 없다: {a.raw}")
         return 1
+    if a.no_calendar and a.calendar:
+        ap.error("--calendar와 --no-calendar는 함께 쓸 수 없습니다")
+    if not a.calendar and not a.no_calendar:
+        raw_dates = pd.read_csv(a.raw, usecols=[C.DATE_COL])[C.DATE_COL]
+        dates = parse_dates(raw_dates)
+        years = dates.dropna().dt.year.unique()
+        if len(years) == 1:
+            candidate = C.HERE / f"calendar_{years[0]}.json"
+            if candidate.exists():
+                a.calendar = candidate
     if a.calendar is not None and not a.calendar.exists():
         print(f"✗ 달력 자료가 없다: {a.calendar}")
         return 1

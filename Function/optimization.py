@@ -1,24 +1,7 @@
-"""자원 최적화 — 시간당 고정 생산량에 필요한 최소 인원과 비용.
+"""계획 생산량을 입력받아 과거 비율로 비용을 가정한다.
 
-`Dashboard/optimization/engine.py` 를 이쪽으로 옮긴 것이다. 옮기면서 **하드코딩 둘을 걷어냈다.**
-
-  ① 원자료에서 `2021-07-13`·`2021-07-15` 를 날짜로 지정해 지우고 있었다.
-     → `preprocessing.fix_hour()` 를 그대로 불러 쓴다. 시 열이 깨진 날을 규칙으로 복구하고,
-       복구가 안 되는 날만 버린다. **모델링과 같은 규칙을 쓴다** — 두 벌로 갈라지지 않는다
-  ② 공휴일이 `config.json` 의 `public_holidays_2021` 에 따로 있었다.
-     → `calendar_YYYY.json` 한 곳에서만 읽는다. 없으면 주말만으로 본다
-
-무엇을 계산하는가
-----------------
-어떤 정시의 생산량 Q 를 내려면 최소 몇 명이 필요했는가를 **과거 기록에서 찾는다.**
-같은 시각·같은 날 유형이면서 그날보다 **앞선 날짜**, 생산량이 Q 이상인 기록 중
-인원이 가장 적었던 날을 고른다. 학습한 인과 모형이 아니라 **과거 사례 기준점**이다.
-
-`공장인원` 을 쓴다 — 모델 입력에서는 뺀 열이다
----------------------------------------------
-모델링에서는 `공장인원 = 생산량 ÷ Σ전력` 이라 **타깃을 역산할 수 있어** 뺐다.
-여기서는 다르다. 맞히려는 대상이 전력이 아니라 **인원 그 자체**이고, 과거에 실제로
-몇 명이 있었는지를 조회할 뿐이다. 예측에 쓰는 것이 아니므로 누수가 아니다.
+공장인원 열은 생산량/전력 합으로 계산된 파생값이다. 실제 배치 인원이나
+생산량 달성에 필요한 최소 인원의 증거로 해석하지 않는다.
 """
 from __future__ import annotations
 
@@ -76,7 +59,7 @@ def day_type(ts) -> str:
 
 
 class StaffingOptimizer:
-    """과거 기록에서 찾은 최소 인원 기준점."""
+    """과거 파생 인원 값으로 계산하는 참고용 비용 가정."""
 
     def __init__(self, raw_path: Path | str | None = None):
         raw_path = Path(raw_path) if raw_path else C.RAW_DEFAULT
@@ -105,24 +88,22 @@ class StaffingOptimizer:
         self.raw["공장인원"], self.raw["생산량"] = staff, prod
 
     def hourly_interval(self, forecast_time, target_time, prediction, *,
-                        unit_price=None, day_wage=None, energy_rate=None,
+                        planned_production=None, unit_price=None, day_wage=None, energy_rate=None,
                         rate_table=None, base_rate=None, billing_peak=None) -> dict:
         start, end = pd.Timestamp(forecast_time), pd.Timestamp(target_time)
         if end - start != pd.Timedelta(minutes=15) or start.minute != 45 or end.minute != 0:
             raise ValueError("정시 직전 45분에 생성한 다음 15분 예측이 필요합니다.")
         raw_hour = end
-        sel = self.raw.loc[self.raw.timestamp == raw_hour]
-        if len(sel) != 1:
-            raise ValueError("해당 정시의 시간당 원자료가 없습니다. 다른 시간대를 선택해주세요.")
-        row = sel.iloc[0]
-        hourly_q = float(row["생산량"])
+        if planned_production is None:
+            raise ValueError("해당 시간의 계획 생산량을 직접 입력해주세요. 미래 실적은 자동 사용하지 않습니다")
+        hourly_q = float(planned_production)
         if not math.isfinite(hourly_q) or hourly_q < 0 or not math.isfinite(float(prediction)):
             raise ValueError("생산량과 예측 전력은 유효한 값이어야 합니다.")
 
         # 같은 시각·같은 날 유형 · **그날보다 앞선 날짜** · 생산량이 Q 이상인 기록
         hist = self.raw.loc[(self.raw.timestamp < end.normalize()) & self.raw.staff_valid
                             & (self.raw.timestamp.dt.hour == end.hour)
-                            & (self.raw.day_type == row.day_type)
+                            & (self.raw.day_type == day_type(end))
                             & np.isfinite(self.raw["생산량"])
                             & self.raw["생산량"].ge(hourly_q)].copy()
         matches = len(hist)
@@ -172,7 +153,9 @@ class StaffingOptimizer:
             "intervalEnd": (end + pd.Timedelta(hours=1)).isoformat(), "durationMinutes": 60,
             "rawHour": raw_hour.isoformat(), "production": hourly_q,
             "hourlyProduction": hourly_q,
-            "productionBasis": "정시부터 1시간 동안의 raw 생산량",
+            "productionBasis": "사용자가 입력한 계산 대상 1시간의 계획 생산량",
+            "staffBasis": "공장인원은 생산량/전력 합의 파생값이며 실제 인원이 아님. 올림한 값을 비용 가정에만 사용",
+            "energyAssumption": "다음 15분 예측 전력이 1시간 동안 유지된다고 가정",
             "prediction": round(float(prediction), 4), "kwh": round(kwh, 4),
             "recommendedStaff": recommended, "reference": reference,
             "historicalMatches": matches,

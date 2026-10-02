@@ -74,8 +74,7 @@ FORWARD_FOLDS = 4
 FORWARD_FOLD_DAYS = 24
 
 # ── 모델 입력 선언 ────────────────────────────────────────────────
-# 트리 계열이 쓰는 열. `kw_lag672`(1주 전)는 **일부러 뺀다** — 넣으면 나빠졌다
-# (전진검증 41.61 → 45.05). 전처리 결과에는 남겨 두므로 쓰고 싶으면 여기만 고치면 된다.
+# 트리 계열 입력. 과거 실험에서 정한 구성을 유지하며 이번 시험 점수로 다시 고르지 않는다.
 TREE_FEATURES = [
     # 시차 — lag1 이 예측 시점의 관측값이다
     "kw_lag1", "kw_lag2", "kw_lag3", "kw_lag4", "kw_lag8", "kw_lag96", "과거전력_16칸",
@@ -102,10 +101,11 @@ NET = {"hidden": 256, "window": 96, "steps": 24, "train_months": 3,
        "epochs": 200, "patience": 25, "batch": 256, "lr": 1e-3}
 SEEDS = [42, 2024, 7]
 
-# 트리 설정 — 세 계열이 같은 초모수를 쓴다(공정 비교)
+# 모델별 설정을 공개한다. RF는 표본 재추출로 나무 다양성을 확보한다.
 TREE = {"n_estimators": 300, "max_features": 1.0, "min_samples_leaf": 3,
         "min_samples_split": 6, "max_depth": 32, "bootstrap": False,
         "random_state": 42, "n_jobs": 2}
+RF = {**TREE, "bootstrap": True}
 BOOST = {"random_state": 42, "max_iter": 400, "learning_rate": 0.06}
 
 # 앙상블 — 고정 반반. 가중치를 고르지 않는다(구간마다 최적이 반대 방향이다)
