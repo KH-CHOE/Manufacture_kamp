@@ -31,15 +31,32 @@ Dataset/raw ──▶ Function/preprocessing.py ──▶ Dataset/preprocessed
 
 ## 실행
 
+Python **3.11.17**을 사용하고, 먼저 [루트 README의 환경 설정](../README.md#대시보드-실행-환경)을 따른다.
+전체 Python 패키지는 저장소 루트 `requirements.txt`로 설치한다.
+가상환경을 만들기만 하면 활성화되는 것은 아니다. 아래 npm 명령은 활성화된 환경의 `python3`를 사용한다.
+
+macOS/Linux에서 저장소 루트 기준:
+
 ```bash
-npm install
-npm run prepare:data     # ../Function/preprocessing.py  (Dataset/raw → Dataset/preprocessed)
-npm run train:model      # ../Function/modeling.py --models et   (약 2분, Model/ 에 저장)
+source .venv/bin/activate
+cd Dashboard
+npm ci
 npm run dev              # 빌드 + 서버. http://127.0.0.1:8065
 ```
 
-`Model/model_et.joblib` 은 저장소에 들어 있으므로 `train:model` 은 다시 만들 때만 쓴다.
-모델·자료 경로는 환경변수 `MODEL_PATH`·`DATA_PATH` 로 바꿀 수 있다.
+Windows PowerShell 명령은 루트 README에 있다.
+저장소에 `Dataset/preprocessed/processed.csv`, `Model/model_et.joblib`, `Model/model_gru.pt`가
+포함되어 있으므로 최초 실행에는 전처리나 재학습이 필요 없다.
+
+자료나 모델을 다시 만들 때만, 가상환경을 활성화한 뒤 이 폴더에서 실행한다.
+
+```bash
+npm run prepare:data     # ../Function/preprocessing.py
+npm run train:model      # ../Function/modeling.py --models et
+```
+
+현재 트리 모델은 **scikit-learn 1.2.2** 형식이다. 환경 버전만 올리면 읽지 못할 수 있으므로
+모델과 requirements를 함께 관리한다. 모델·자료 경로는 환경변수 `MODEL_PATH`·`DATA_PATH`로 바꿀 수 있다.
 
 ## API
 
@@ -71,6 +88,5 @@ npm run dev              # 빌드 + 서버. http://127.0.0.1:8065
 > 첫 시드만 쓰면 다른 값이 나온다. 표준화 통계도 저장된 것을 쓴다 — 추론 자료로 다시
 > 재면 시험 구간을 본 것이 된다.
 >
-> **학습 때와 달리 교착하지 않는다.** sklearn 과 torch 를 한 프로세스에서 쓰면 libomp
-> 이중 적재로 교착하는 문제는 **학습(Adam)** 에서 난다. 순전파만 하는 추론은 공존한다 —
-> 실측으로 확인했다. 그래서 화면 한 프로세스가 트리와 순환신경망을 함께 돌릴 수 있다.
+> **순환신경망 추론은 별도 프로세스로 실행한다.** `Function/serving.py`가 현재 Python 환경으로
+> `Function/net_infer.py`를 호출해 예측을 받아 온다. sklearn과 torch의 OpenMP 충돌을 피하기 위한 구성이다.

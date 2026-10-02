@@ -1,3 +1,4 @@
-fastapi
-uvicorn[standard]
-# 계산 쪽 의존성은 ../Function/requirements.txt 에 있다
+fastapi==0.142.2
+uvicorn[standard]==0.54.0
+# 계산 쪽 직접 의존성은 ../../Function/requirements.txt
+# 전체 실행 환경은 저장소 루트 requirements.txt로 설치한다.

@@ -76,6 +76,10 @@ python preprocessing.py --raw test_year_2022.csv --out processed_2022.csv
 
 ## 실행
 
+먼저 [루트 README](../README.md#대시보드-실행-환경)에 따라 Python 3.11 가상환경과 패키지를 설치한다.
+아래 명령은 그 환경을 사용해 `Function/` 폴더에서 실행한다.
+저장된 트리 모델의 scikit-learn 버전은 **1.2.2**이며, 모델과 의존성 버전을 함께 관리한다.
+
 ```bash
 # ① 전처리 — 인수 없이 돌아간다 (Dataset/raw → Dataset/preprocessed)
 python preprocessing.py
