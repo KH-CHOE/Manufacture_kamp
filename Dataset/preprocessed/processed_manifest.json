@@ -26,7 +26,7 @@
  },
  "출력": {
   "파일": "processed.csv",
-  "sha256": "96781c8f6437c9fca4dc98e379637422e3dffab5e2bfb1049663680a4cada665",
+  "sha256": "29716dbe856ca8c6a88204c033c8aab4ff91cac7b481fd71ea60222417adc575",
   "행": 24477,
   "열": [
    "ts",
@@ -70,7 +70,11 @@
    "is_off",
    "days_since_active",
    "prev_day_active",
-   "생산량_lag4"
+   "생산량_lag4",
+   "기온_lag4",
+   "풍속_lag4",
+   "습도_lag4",
+   "강수량_lag4"
   ]
  },
  "달력자료": "calendar_2021.json",
@@ -293,8 +297,12 @@
     "days_since_active",
     "prev_day_active"
    ],
-   "지연한누적열": [
-    "생산량_lag4"
+   "한시간지연열": [
+    "생산량_lag4",
+    "기온_lag4",
+    "풍속_lag4",
+    "습도_lag4",
+    "강수량_lag4"
    ]
   },
   {

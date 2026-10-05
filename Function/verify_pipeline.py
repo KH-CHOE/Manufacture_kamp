@@ -114,7 +114,7 @@ def main() -> int:
 
     # ── B·C·D 인과성 ──
     print("\nB·C·D 인과성 — 미래 실측을 오염시켜 입력 불변을 확인한다")
-    feats = [c for c in (C.TREE_FEATURES + C.NET_CALENDAR + ["kW"]) if c in base.columns]
+    feats = [c for c in (C.TREE_FEATURES_WX + C.NET_CALENDAR + ["kW"]) if c in base.columns]
     cal_cols = {"시간", "15분위치", "dow", "is_weekend", "is_day_shift",
                 "tod_sin", "tod_cos", "dow_sin", "dow_cos", "is_off"}
     sensitive = [c for c in feats if c not in cal_cols]
@@ -139,19 +139,24 @@ def main() -> int:
         # 원자료 행 번호 × 4 가 전처리 결과의 행 번호와 어긋나기 때문이다
         qcut = int((base["ts"] < cut_time[hcut]).sum())
         pre = np.arange(C.PER_WEEK, qcut)              # 워밍업 뒤 ~ 절단 직전
-        a_ = base.loc[pre, feats].to_numpy(float)
-        b_ = other.loc[pre, feats].to_numpy(float)
+        # 오염 자료에서는 파생 열 탐지가 999 투성이 열(예: 강수량)을 다르게 판정해 그 열과
+        # 지연 열이 아예 없을 수 있다 — 누수가 아니라 열 구성 차이이므로 양쪽에 있는 열만 본다
+        fe = [c for c in feats if c in other.columns]
+        se = [c for c in sensitive if c in other.columns]
+        a_ = base.loc[pre, fe].to_numpy(float)
+        b_ = other.loc[pre, fe].to_numpy(float)
         same = bool(np.allclose(np.nan_to_num(a_, nan=-1), np.nan_to_num(b_, nan=-1)))
         edge = qcut - 1
-        ea = base.loc[[edge], feats].to_numpy(float)
-        eb = other.loc[[edge], feats].to_numpy(float)
+        ea = base.loc[[edge], fe].to_numpy(float)
+        eb = other.loc[[edge], fe].to_numpy(float)
         esame = bool(np.allclose(np.nan_to_num(ea, nan=-1), np.nan_to_num(eb, nan=-1)))
         post = np.arange(qcut + 50, min(qcut + 400, len(base)))
-        pa = base.loc[post, sensitive].to_numpy(float)
-        pb = other.loc[post, sensitive].to_numpy(float)
+        pa = base.loc[post, se].to_numpy(float)
+        pb = other.loc[post, se].to_numpy(float)
         diff = len(post) > 0 and not bool(
             np.allclose(np.nan_to_num(pa, nan=-1), np.nan_to_num(pb, nan=-1)))
-        ok(f"절단 {hcut:>5} · 예측시점 입력 불변", same, f"검사 {len(pre):,}행")
+        ok(f"절단 {hcut:>5} · 예측시점 입력 불변", same,
+           f"검사 {len(pre):,}행 · 열 {len(fe)}/{len(feats)}")
         ok(f"절단 {hcut:>5} · 경계행({edge}) 불변", esame)
         ok(f"절단 {hcut:>5} · 오염 이후는 변한다", diff, "헛돌지 않는다")
 
@@ -202,6 +207,18 @@ def main() -> int:
     seg = steps.get("구간 분할", {})
     ok("삭제한 날 자리가 시각 공백으로 구간을 나눴다", seg.get("구간수", 1) > 1,
        f"구간 {seg.get('구간수')}개")
+    # 기상·생산량은 한 시간 전 확정값만 — 같은 구간 안에서 4칸(1시간) 밀린 값이어야 한다
+    proc = pd.read_csv(C.OUT_DEFAULT)
+    seg_of = proc["ts"].map(dict(zip(base["ts"].astype(str), base["segment"])))
+    for c in C.DELAYED_CONTEXT:
+        want = proc.groupby(seg_of, sort=False)[c].shift(C.PER_HOUR)
+        got = proc[f"{c}_lag{C.PER_HOUR}"]
+        okv = ((got == want) | (got.isna() & want.isna())).all()
+        ok(f"{c}_lag{C.PER_HOUR} = 같은 구간 한 시간 전 {c}", bool(okv))
+    raw_ctx = set(C.CONTEXT_COLS)
+    ok("어떤 트리 입력에도 같은 시간 기상·생산량 원값이 없다",
+       not raw_ctx & set(C.TREE_FEATURES_WX),
+       f"기상 후보 입력 {len(C.TREE_FEATURES_WX)}개")
     imp = steps.get("결측 대치", {})
     ok("결측 4칸을 대치했다",
        sum(x["결측"] for x in imp.get("상세", [])) == 4)
@@ -244,7 +261,7 @@ def main() -> int:
     d = M.load(C.OUT_DEFAULT)
     mask = M.usable(d)
     rows = d[mask]
-    need = [c for c in (C.TREE_FEATURES + C.NET_CALENDAR + ["kW", "y"]) if c in d.columns]
+    need = [c for c in (C.TREE_FEATURES_WX + C.NET_CALENDAR + ["kW", "y"]) if c in d.columns]
     ok("공통 행에 결측이 없다", bool(rows[need].notna().all().all()))
     ok("공통 행 전부에서 순환신경망 창이 유효하다",
        bool(M.window_ok(d, C.NET["window"])[mask].all()))
@@ -285,12 +302,12 @@ def main() -> int:
         d["kw_roll16"] = d.groupby(day)["kW"].transform("max")            # 그날 전체를 본다
         return d
 
-    for name, fn in (("직전값이 다음 값을 본다", leaky_shift),
-                     ("이동평균 창이 미래로 한 칸", leaky_rolling),
-                     ("7월에만 미래를 본다", leaky_july),
-                     ("그날 전체 최대를 쓴다", leaky_whole_day)):
+    def detects(fn) -> bool:
+        """fn 으로 변수를 만들 때 절단 이전 입력이 오염 자료와 달라지는 절단점이 있는가.
+
+        절단 위치는 B·C·D 와 같이 **시각으로** 찾는다(깨진 날 삭제로 행 번호가 어긋난다).
+        """
         P.add_features = fn
-        caught = False
         try:
             for hcut in CUTS:
                 mut = raw.copy()
@@ -300,16 +317,24 @@ def main() -> int:
                 with contextlib.redirect_stdout(io.StringIO()):
                     a2 = build(raw, cal)
                     b2 = build(mut, cal)
-                qcut = hcut * C.PER_HOUR
+                qcut = int((a2["ts"] < cut_time[hcut]).sum())
                 pre = np.arange(C.PER_WEEK, qcut)
+                fe = [c for c in feats if c in b2.columns]
                 if not np.allclose(
-                        np.nan_to_num(a2.loc[pre, feats].to_numpy(float), nan=-1),
-                        np.nan_to_num(b2.loc[pre, feats].to_numpy(float), nan=-1)):
-                    caught = True
-                    break
+                        np.nan_to_num(a2.loc[pre, fe].to_numpy(float), nan=-1),
+                        np.nan_to_num(b2.loc[pre, fe].to_numpy(float), nan=-1)):
+                    return True
+            return False
         finally:
             P.add_features = orig_add
-        ok(f"심은 누수를 잡는다 — {name}", caught)
+
+    # 대조 — 누수를 심지 않은 정상 판은 잡히면 안 된다. 잡히면 검사가 헛짚는 것이다
+    ok("누수를 심지 않은 정상 판은 잡지 않는다", not detects(orig_add))
+    for name, fn in (("직전값이 다음 값을 본다", leaky_shift),
+                     ("이동평균 창이 미래로 한 칸", leaky_rolling),
+                     ("7월에만 미래를 본다", leaky_july),
+                     ("그날 전체 최대를 쓴다", leaky_whole_day)):
+        ok(f"심은 누수를 잡는다 — {name}", detects(fn))
 
     print(f"\n{'─' * 58}")
     if fails:

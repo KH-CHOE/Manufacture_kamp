@@ -52,7 +52,10 @@ import config as C
 
 HERE = Path(__file__).resolve().parent
 
-TREE_MODELS = {"rf": "RandomForest", "et": "ExtraTrees", "hgb": "HistGradientBoosting"}
+TREE_MODELS = {"rf": "RandomForest", "et": "ExtraTrees", "hgb": "HistGradientBoosting",
+               "et_wx": "ExtraTrees + 기상"}
+# 트리 종류별 입력. et_wx 만 기상(한 시간 전 확정값)을 더 받는다 — 결합에는 쓰지 않는 비교 후보
+TREE_INPUTS = {k: (C.TREE_FEATURES_WX if k == "et_wx" else C.TREE_FEATURES) for k in TREE_MODELS}
 NET_MODELS = {"gru": "GRU", "lstm": "LSTM"}
 BASE_MODELS = {"persistence": "직전값 유지", "tod_dow": "시각×요일 중앙값"}
 ALL_MODELS = ["baseline", *TREE_MODELS, *NET_MODELS, "ensemble"]
@@ -99,8 +102,8 @@ def net_windows(d: pd.DataFrame, mask: np.ndarray, win: int, steps: int):
 
 def usable(d: pd.DataFrame) -> np.ndarray:
     """모든 모델이 공유할 행. 하나라도 못 쓰는 행은 전부에서 뺀다."""
-    cols = [c for c in (C.TREE_FEATURES + C.NET_CALENDAR + ["kW", "y"]) if c in d.columns]
-    miss = [c for c in (C.TREE_FEATURES + C.NET_CALENDAR) if c not in d.columns]
+    cols = [c for c in (C.TREE_FEATURES_WX + C.NET_CALENDAR + ["kW", "y"]) if c in d.columns]
+    miss = [c for c in (C.TREE_FEATURES_WX + C.NET_CALENDAR) if c not in d.columns]
     if miss:
         raise SystemExit(f"✗ 모델 입력 열이 전처리 결과에 없다: {miss}\n"
                          f"  preprocessing.py 를 다시 돌렸는지 확인해라")
@@ -186,7 +189,7 @@ def run_trees(d: pd.DataFrame, folds: list[list[int]], want: list[str]) -> dict:
     def make(kind: str):
         if kind == "rf":
             return RandomForestRegressor(**C.RF)
-        if kind == "et":
+        if kind in ("et", "et_wx"):
             return ExtraTreesRegressor(**C.TREE)
         return HistGradientBoostingRegressor(**C.BOOST)
 
@@ -202,12 +205,13 @@ def run_trees(d: pd.DataFrame, folds: list[list[int]], want: list[str]) -> dict:
         for kind in want:
             p = Pipeline([("impute", SimpleImputer(strategy="median")),
                           ("model", make(kind))])
-            p.fit(tr[C.TREE_FEATURES], tr["y"])
-            pr = p.predict(te[C.TREE_FEATURES])
+            feats = TREE_INPUTS[kind]
+            p.fit(tr[feats], tr["y"])
+            pr = p.predict(te[feats])
             res[kind][label] = {**score(y, pr), "rows": int(len(te))}
             preds[kind][label] = pr
             if label == "test":
-                joblib.dump({"estimator": p, "features": C.TREE_FEATURES},
+                joblib.dump({"estimator": p, "features": feats},
                             C.MODEL_DIR / f"model_{kind}.joblib", compress=3)
             print(f"  {TREE_MODELS[kind]:22s} {label:>8} MSE {res[kind][label]['MSE']:9.3f}",
                   flush=True)
@@ -386,6 +390,42 @@ def run_nets(original: pd.DataFrame, folds: list[list[int]], want: list[str],
     return res
 
 
+# ══ 결합 비율 ═══════════════════════════════════════════════════════
+def search_blend(parts: dict, fold_labels: list[str]) -> dict:
+    """트리 비중 w 를 C.BLEND_GRID 로 훑어 **전진검증 평균 MSE 최소** 인 값을 고른다.
+
+    parts: 구간 이름 → (정답, 트리 예측, GRU 예측). 시험("test")은 고르는 데 쓰지 않고
+    그 w 의 성적을 확인만 한다. 시험에서 가장 좋은 w 는 참고로만 적는다.
+    동률(1e-9 이내)이면 C.BLEND_DEFAULT 에 가까운 쪽을 고른다.
+    """
+    def mse(label, w):
+        y, t, n = parts[label]
+        return float(np.mean((y - (w * t + (1 - w) * n)) ** 2))
+
+    table = []
+    for w in C.BLEND_GRID:
+        fwd = [mse(f, w) for f in fold_labels if f in parts]
+        table.append({"트리비중": w, "전진검증_평균": round(float(np.mean(fwd)), 4),
+                      "시험": round(mse("test", w), 4) if "test" in parts else None})
+    best = min(table, key=lambda r: (round(r["전진검증_평균"], 9),
+                                     abs(r["트리비중"] - C.BLEND_DEFAULT)))
+    half = next(r for r in table if abs(r["트리비중"] - C.BLEND_DEFAULT) < 1e-9)
+    test_best = (min(table, key=lambda r: (r["시험"], abs(r["트리비중"] - C.BLEND_DEFAULT)))
+                 if "test" in parts else None)
+    return {
+        "기준": "트리 비중 0.01~0.99(0.01 간격) 중 전진검증 평균 MSE 최소. 동률이면 0.5에 가까운 쪽",
+        "주의": ("전진검증으로 고른 값이라 선정 비중의 전진검증 평균은 약간 낙관적이다. "
+               "시험 MSE 가 고르는 데 쓰지 않은 확인값이다"),
+        "선정_트리비중": best["트리비중"], "선정_GRU비중": round(1 - best["트리비중"], 2),
+        "선정_전진평균": best["전진검증_평균"], "선정_시험": best["시험"],
+        "고정0.5_전진평균": half["전진검증_평균"], "고정0.5_시험": half["시험"],
+        "참고_시험최적_트리비중": test_best["트리비중"] if test_best else None,
+        "참고_시험최적_MSE": test_best["시험"] if test_best else None,
+        "참고_설명": "시험 최적 비중은 고르는 데 쓰지 않았다",
+        "표": table,
+    }
+
+
 # ══ 실행 ════════════════════════════════════════════════════════════
 def summarize(res: dict, folds: list[list[int]]) -> dict:
     """전진검증 평균과 시험 성적을 모델별로 모은다."""
@@ -482,6 +522,7 @@ def main() -> int:
             res.update(json.loads(f.read_text("utf-8")))
 
     # ── 결합 ──
+    blend_search = None
     if "ensemble" in want:
         tp = HERE / "_pred_trees.npz"
         np_ = HERE / "_pred_nets.npz"
@@ -489,7 +530,8 @@ def main() -> int:
             T, N = np.load(tp), np.load(np_)
             ridx = N["row_index"]
             res["ensemble"] = {}
-            print("\n── 결합 (ExtraTrees + GRU · 고정 반반) ──")
+            print("\n── 결합 (ExtraTrees + GRU) — 트리 비중을 전진검증으로 고른다 ──")
+            parts = {}
             for split, hi, label in jobs(rows, folds):
                 tk, nk = f"et|{label}", f"gru|{label}"
                 if tk not in T.files or nk not in N.files:
@@ -504,11 +546,16 @@ def main() -> int:
                     print(f"  ✗ {label}: 두 예측의 행이 다르다 "
                           f"({len(tree_rows)} vs {len(net_rows)})")
                     raise ValueError(f"결합 예측의 행 불일치: {label}")
-                y = rows["y"].to_numpy()[tree_rows]
-                b = C.BLEND_WEIGHT * T[tk] + (1 - C.BLEND_WEIGHT) * N[nk]
-                res["ensemble"][label] = {**score(y, b), "rows": int(len(y))}
+                parts[label] = (rows["y"].to_numpy()[tree_rows], T[tk], N[nk])
+            blend_search = search_blend(parts, [str(lo) for lo, _ in folds])
+            w = blend_search["선정_트리비중"]
+            for label, (y, t, n) in parts.items():
+                res["ensemble"][label] = {**score(y, w * t + (1 - w) * n), "rows": int(len(y))}
                 print(f"  {'ExtraTrees+GRU':22s} {label:>8} MSE "
                       f"{res['ensemble'][label]['MSE']:9.3f}")
+            print(f"  선정 트리 비중 {w} (전진검증 평균 {blend_search['선정_전진평균']}) · "
+                  f"고정 0.5 는 {blend_search['고정0.5_전진평균']} · "
+                  f"참고: 시험 최적 {blend_search['참고_시험최적_트리비중']}")
 
     summary = summarize(res, folds)
     out = {
@@ -518,8 +565,10 @@ def main() -> int:
                "시험행": int((rows["split"] == "test").sum())},
         "전진검증구간": folds,
         "설정": {"tree": C.TREE, "rf": C.RF, "boost": C.BOOST, "net": C.NET, "seeds": C.SEEDS,
-               "blend_weight": C.BLEND_WEIGHT,
-               "tree_features": C.TREE_FEATURES, "net_calendar": C.NET_CALENDAR},
+               "blend_weight": (blend_search or {}).get("선정_트리비중"),
+               "tree_features": C.TREE_FEATURES, "tree_features_wx": C.TREE_FEATURES_WX,
+               "net_calendar": C.NET_CALENDAR},
+        "결합비율탐색": blend_search,
         "모델별": summary,
         "구간별_원자료": res,
         "선정규약": ("전진검증 평균 MSE 로만 고른다. 시험 구간은 선정에 쓰지 않는다. "

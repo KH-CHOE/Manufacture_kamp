@@ -20,6 +20,8 @@ def evaluate(data_path=C.OUT_DEFAULT, result_path=C.MODEL_DIR/'results.json'):
     for day, group in original.groupby('date_key'):
         if len(group) == C.PER_DAY and M.window_ok(group, C.PER_DAY)[-1]:
             fingerprints[int(day)] = hashlib.sha256(group.kW.to_numpy('<f8').tobytes()).hexdigest()
+    # 결합 비중은 학습이 전진검증으로 고른 값을 쓴다(results.json)
+    w = json.loads(Path(result_path).read_text(encoding='utf-8'))['설정']['blend_weight']
     trees = np.load(C.HERE/'_pred_trees.npz')
     nets = np.load(C.HERE/'_pred_nets.npz')
     out = {'definition': '동일한 96개 전력값의 하루 곡선이 평가 시작 전 자료에 있었던 날짜',
@@ -35,7 +37,7 @@ def evaluate(data_path=C.OUT_DEFAULT, result_path=C.MODEL_DIR/'results.json'):
         med = train.groupby(['시간','15분위치','dow']).y.median()
         p = test.set_index(['시간','15분위치','dow']).index.map(med).to_numpy(float)
         predictions['tod_dow'] = np.where(np.isnan(p), train.y.median(), p)
-        for name in ('rf','et','hgb'):
+        for name in ('rf','et','hgb','et_wx'):
             key = f'{name}|{label}'
             if key in trees.files:
                 predictions[name] = trees[key]
@@ -46,7 +48,7 @@ def evaluate(data_path=C.OUT_DEFAULT, result_path=C.MODEL_DIR/'results.json'):
                     raise ValueError('신경망 예측 행이 다릅니다')
                 predictions[name] = nets[key]
         if 'et' in predictions and 'gru' in predictions:
-            predictions['ensemble'] = C.BLEND_WEIGHT*predictions['et']+(1-C.BLEND_WEIGHT)*predictions['gru']
+            predictions['ensemble'] = w*predictions['et']+(1-w)*predictions['gru']
         scores = {}
         for name, pred in predictions.items():
             if len(pred) != len(test):

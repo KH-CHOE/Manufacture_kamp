@@ -434,16 +434,16 @@ def add_features(long: pd.DataFrame, cal: dict | None, log: Log) -> pd.DataFrame
     d["prev_day_active"] = ts.dt.normalize().map(
         active.shift(1, fill_value=True).astype(int)).fillna(1).astype(int)
 
-    # 시간 단위 누적 열은 반드시 지연시킨다 — 그 시간이 끝나야 확정된다
-    for c in C.HOURLY_CUMULATIVE:
+    # 시간당 한 값인 열은 한 시간 늦춘다 — 그 시간이 끝나야 확정됐다고 본다
+    for c in C.DELAYED_CONTEXT:
         if c in d.columns:
             d[f"{c}_lag{C.PER_HOUR}"] = d.groupby("segment", sort=False)[c].shift(C.PER_HOUR)
 
     log.add("파생변수", 전력시차=8, 이동통계=7, 달력=11,
             휴무="자료로 받은 공휴일" if cal else "주말만 (공휴일 자료 없음)",
             인과휴무변수=["days_since_active", "prev_day_active"],
-            지연한누적열=[f"{c}_lag{C.PER_HOUR}" for c in C.HOURLY_CUMULATIVE
-                      if c in d.columns])
+            한시간지연열=[f"{c}_lag{C.PER_HOUR}" for c in C.DELAYED_CONTEXT
+                       if c in d.columns])
     return d
 
 

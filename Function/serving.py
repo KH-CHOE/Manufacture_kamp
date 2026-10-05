@@ -83,7 +83,13 @@ def load(model_path: Path | None = None, data_path: Path | None = None,
     explicit_net = net_path is not None
     net_path = Path(net_path) if net_path else C.MODEL_DIR / "model_gru.pt"
     use_net = net_path.exists() and (model_path.name == "model_et.joblib" or explicit_net)
-    w = C.BLEND_WEIGHT if blend is None else float(blend)
+    if blend is not None:
+        w = float(blend)
+    else:
+        # 학습이 전진검증으로 고른 트리 비중(manifest). 기록이 없으면 기본 0.5
+        man = model_path.parent / "manifest.json"
+        w = (json.loads(man.read_text()).get("blend_weight") if man.exists() else None)
+        w = C.BLEND_DEFAULT if w is None else float(w)
     if not np.isfinite(w) or not 0 <= w <= 1:
         raise ValueError("결합 가중치는 0과 1 사이의 유한한 값이어야 합니다")
     if not model_path.exists():
@@ -210,8 +216,30 @@ def meta() -> dict:
         name = f"{_state['model_path'].name} + {_state['net_path'].name}"
     else:
         algo, name = tree_name, _state["model_path"].name
+    # 비교 후보 성적과 결합 비율 탐색 — 학습 기록(results.json)을 그대로 보여 준다
+    candidates, blend_search = None, None
+    res_path = _state["model_path"].parent / "results.json"
+    if res_path.exists():
+        res = json.loads(res_path.read_text(encoding="utf-8"))
+        names = {"ensemble": "결합 (ExtraTrees + GRU)", "et": "ExtraTrees", "et_wx": "ExtraTrees + 기상",
+                 "rf": "RandomForest", "hgb": "HistGradientBoosting", "gru": "GRU", "lstm": "LSTM",
+                 "persistence": "직전값 유지", "tod_dow": "시각×요일 중앙값"}
+        models = res.get("모델별", {})
+        order = sorted(models, key=lambda k: models[k].get("전진검증_평균") or 9e9)
+        candidates = [{"key": k, "name": names.get(k, k), "forward": models[k].get("전진검증_평균"),
+                       "test": (models[k].get("시험") or {}).get("MSE"),
+                       "inEnsemble": k in ("ensemble", "et", "gru")} for k in order]
+        s = res.get("결합비율탐색")
+        if s:
+            blend_search = {"chosen": s["선정_트리비중"], "forward": s["선정_전진평균"],
+                            "test": s["선정_시험"], "halfForward": s["고정0.5_전진평균"],
+                            "halfTest": s["고정0.5_시험"], "testBest": s["참고_시험최적_트리비중"],
+                            "rule": s["기준"]}
+    net_inputs = ([f"과거 {C.NET['window']}구간 전력({C.NET['window'] // C.PER_DAY}일)"]
+                  + list(C.NET_CALENDAR) if _state["mode"] == "ensemble" else None)
     return {"days": days, "defaultDay": days[0], "model": name,
             "algorithm": algo, "modelType": algo,
+            "netInputs": net_inputs, "candidates": candidates, "blendSearch": blend_search,
             "ensemble": _state["mode"] == "ensemble",
             "blendWeight": _state["blend_weight"],
             "seeds": (_state["net_info"].get("seeds") if _state["mode"] == "ensemble" else None),

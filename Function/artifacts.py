@@ -15,14 +15,16 @@ def digest(path):
 def configuration():
     return {"tree_features": C.TREE_FEATURES, "net_calendar": C.NET_CALENDAR,
             "window": C.NET["window"], "steps": C.NET["steps"],
-            "blend_weight": C.BLEND_WEIGHT}
+            "tree_features_wx": C.TREE_FEATURES_WX,
+            "blend_grid": [C.BLEND_GRID[0], C.BLEND_GRID[-1], len(C.BLEND_GRID)],
+            "blend_rule": "전진검증 평균 MSE 최소, 동률이면 0.5에 가까운 쪽"}
 
 
 def write_manifest(data_path, result_path):
     result = json.loads(Path(result_path).read_text())
     models = result['모델별']
     files = {}
-    for kind in ('rf', 'et', 'hgb', 'gru', 'lstm'):
+    for kind in ('rf', 'et', 'hgb', 'et_wx', 'gru', 'lstm'):
         if kind in models:
             path = C.MODEL_DIR / f'model_{kind}.{ "pt" if kind in ("gru", "lstm") else "joblib"}'
             files[path.name] = digest(path)
@@ -43,6 +45,8 @@ def write_manifest(data_path, result_path):
         'window_rule': 'original observation axis; finite continuous 96 observations',
         'normalization': 'first 85% training rows only; validation excluded',
         'ensemble': 'et' in models and 'gru' in models and 'ensemble' in models,
+        # 전진검증으로 고른 트리 비중. 서빙은 이 값으로 섞는다
+        'blend_weight': result.get('설정', {}).get('blend_weight'),
     }
     (C.MODEL_DIR/'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2)+'\n')
     return manifest
@@ -68,4 +72,6 @@ def validate(model_path, net_path=None):
         raise ValueError('평가된 결합 모델은 ExtraTrees + GRU입니다')
     if net_path is not None and not m['ensemble']:
         raise ValueError('이 학습 실행은 결합 모델을 평가하지 않았습니다')
+    if net_path is not None and m.get('blend_weight') is None:
+        raise ValueError('결합 비중이 기록되지 않았습니다. 전체 모델을 다시 학습해주세요')
     return m

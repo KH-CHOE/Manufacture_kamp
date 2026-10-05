@@ -33,7 +33,12 @@ def main():
                 assert p.stdout.count('완료 학습 재사용') == 8, p.stdout
         report = json.loads((root/'Model/results.json').read_text())
         manifest = json.loads((root/'Model/manifest.json').read_text())
-        assert manifest['ensemble'] and len(report['모델별']) == 8
+        import modeling as M
+        expected = set(M.BASE_MODELS) | set(M.TREE_MODELS) | set(M.NET_MODELS) | {'ensemble'}
+        assert manifest['ensemble'] and set(report['모델별']) == expected, sorted(report['모델별'])
+        # 결합 비율이 탐색 범위 안에서 골라져 결과·검증 기록에 같은 값으로 적혔는가
+        w = report['결합비율탐색']['선정_트리비중']
+        assert w in C.BLEND_GRID and manifest['blend_weight'] == w == report['설정']['blend_weight']
         out = root/'inference.npz'
         subprocess.run([sys.executable,'-B',str(fn/'net_infer.py'),'--data',str(C.OUT_DEFAULT),
                         '--model',str(root/'Model/model_gru.pt'),'--out',str(out)], check=True)
@@ -41,7 +46,7 @@ def main():
         np.testing.assert_array_equal(inferred['where'], trained['row_index'][trained['gru|idx|test']])
         np.testing.assert_allclose(inferred['pred'], trained['gru|test'], atol=1e-4, rtol=1e-5)
         assert (root/'Model/duplicate_evaluation.json').exists()
-        print('통과: 전체 학습 연결, 8개 완료 학습 재사용, 시드 평균 저장 추론, 결합 및 중복 평가')
+        print('통과: 전체 학습 연결, 8개 완료 학습 재사용, 시드 평균 저장 추론, 결합 비율 기록, 결합 및 중복 평가')
     return 0
 
 

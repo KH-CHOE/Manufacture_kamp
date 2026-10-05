@@ -38,23 +38,60 @@
     ],
     "window": 96,
     "steps": 24,
-    "blend_weight": 0.5
+    "tree_features_wx": [
+      "kw_lag1",
+      "kw_lag2",
+      "kw_lag3",
+      "kw_lag4",
+      "kw_lag8",
+      "kw_lag96",
+      "과거전력_16칸",
+      "kw_d1",
+      "kw_d2",
+      "kw_roll4",
+      "kw_roll16",
+      "kw_std4",
+      "전력변화_2시간",
+      "전력변화_4시간",
+      "최근2시간_전력평균",
+      "최근2시간_전력최대",
+      "최근4시간_전력평균",
+      "최근4시간_전력최대",
+      "시간",
+      "15분위치",
+      "dow",
+      "is_weekend",
+      "is_day_shift",
+      "tod_sin",
+      "tod_cos",
+      "기온_lag4",
+      "풍속_lag4",
+      "습도_lag4",
+      "강수량_lag4"
+    ],
+    "blend_grid": [
+      0.01,
+      0.99,
+      99
+    ],
+    "blend_rule": "전진검증 평균 MSE 최소, 동률이면 0.5에 가까운 쪽"
   },
   "source_sha256": {
-    "config.py": "03e28a9a34c3e2ac8f559ebf391df81ff24d5413357d1b5414a738917d12f129",
-    "preprocessing.py": "a4231f0749cab081763fc456aa1d3afce03d5cade9cf7935ba258735cf5751d2",
-    "modeling.py": "6fbf9e2653af6ede3bc5be2fd13f87f41f4f54d5f1e050fcef623a091426cec2",
+    "config.py": "bfa50aaecf633cd6f99daec27b1ed7f073a6b3fdb56d063796fd7aa25046989a",
+    "preprocessing.py": "dc9f57c1f7ec3d63bf1afd6c3c6a22395f402aa071c31bb48b171c968a202eed",
+    "modeling.py": "2cd84972195d5bd08f14a838f30112eee0f5d544a989c3fc1f2fe324d9949b69",
     "net_infer.py": "d12337ac9f6a0faa1f6bb959169a6a0f6a95bc8f0388e9caded0041acd4b5e4a"
   },
-  "data_sha256": "32cdb5e173baad0ff4f55654041e15313dde423405879ebb779a984943f326da",
+  "data_sha256": "29716dbe856ca8c6a88204c033c8aab4ff91cac7b481fd71ea60222417adc575",
   "test_rows_sha256": "18a062fcf53b0d8b1e2f5fcf46d3e7efa5b5ff4623a31198efcbf4c7d9c92ca1",
   "files": {
-    "model_rf.joblib": "0a450c16668a1a83618de1fedcdde9e2cf9f70992e340df2019a241d004d2a76",
-    "model_et.joblib": "b49b74dc4cd221d7bc00fde87f6ebdde419d6a221c3c711073e585a4edec4531",
-    "model_hgb.joblib": "ef79c79fe187b30a63d9400eaa9f1cc25b3d71bea31f64391d644d4c6a646a8f",
-    "model_gru.pt": "169c5c123034186376607835387506f2c63c4aad0547b19cf936b6e9c1f27c6e",
-    "model_lstm.pt": "b7f21e8fe958ee3088ecd663ab8b1b10531b063d95a3fa706f8e14c1b01deb21",
-    "results.json": "ed93920dc48882433bd71ab428746c054d32dd814958da48dc705a6994fc9d2e"
+    "model_rf.joblib": "02fc174841dde6251a6f30726e2979ed430076de1bf6aa352a9450f4c836b200",
+    "model_et.joblib": "6bea14efdda11ecdfcea9aa2ea89adc9563d30a33cf826599404ecf71c03069f",
+    "model_hgb.joblib": "e6c0d8b157ffffd35de00b73b46d917a98fe213d3dc108f5083bdf4c2dd04b8f",
+    "model_et_wx.joblib": "bc8e1f98470b00df62d7482af05073fe7748adda95a012946ebfb7848cf6b514",
+    "model_gru.pt": "94d9cd5341087328c4d07e06ca74120330e69cbf3f4b95261b5840259fc862c2",
+    "model_lstm.pt": "b5c4120536f001430ab560aa516fce868be01610e4a9c9925681855d3f4d0a72",
+    "results.json": "8b9a2d5bcb33f9d45f464ab7047fc8b9649fc1e675709ca29f1f538817377838"
   },
   "python": "3.11.7",
   "packages": {
@@ -67,5 +104,6 @@
   },
   "window_rule": "original observation axis; finite continuous 96 observations",
   "normalization": "first 85% training rows only; validation excluded",
-  "ensemble": true
+  "ensemble": true,
+  "blend_weight": 0.68
 }

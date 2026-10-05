@@ -24,12 +24,14 @@ CALENDAR_DEFAULT = HERE / "calendar_2021.json"
 # ── 스키마: 열의 역할 ──────────────────────────────────────────────
 # 원자료는 '한 행 = 한 시간, 네 열 = 그 시간의 15분 구간 전력' 인 넓은 형태다
 DATE_COL = "날짜"                                   # YYYYMMDD 정수 또는 날짜 문자열
-HOUR_COL = "시간"                                   # 0~23 정수 (깨져 있으면 복구한다)
+HOUR_COL = "시간"                                   # 0~23 정수 (깨진 날은 삭제한다)
 POWER_COLS = ["15분", "30분", "45분", "60분"]        # 그 시간의 네 구간 전력 (kW)
 # 맥락 변수 — 예측 시점에 이미 지난 관측값. 없으면 없는 대로 돌아간다
 CONTEXT_COLS = ["생산량", "기온", "풍속", "습도", "강수량"]
-# 시간 단위로 누적되는 열 — 그 시간이 끝나야 확정되므로 반드시 지연시켜 쓴다
-HOURLY_CUMULATIVE = ["생산량"]
+# 한 시간 늦춰 쓰는 열 — 시간당 한 값이라 그 시간이 끝나야 확정됐다고 본다.
+# 생산량은 시간 단위 누적이고, 기상은 정각 관측인지 시간 평균인지 원자료로 알 수 없다.
+# 같은 시간 값을 15분 단위 예측에 쓰면 아직 모르는 값이 섞일 수 있어 한 시간 전 값만 쓴다
+DELAYED_CONTEXT = ["생산량", "기온", "풍속", "습도", "강수량"]
 
 # ── 해상도 ────────────────────────────────────────────────────────
 STEP_MIN = 15
@@ -83,6 +85,12 @@ TREE_FEATURES = [
     # 달력 — **순환 인코딩과 원값을 함께** 준다. 트리는 원값이 있어야 한 번에 자른다
     "시간", "15분위치", "dow", "is_weekend", "is_day_shift", "tod_sin", "tod_cos",
 ]
+# 기상을 쓰는 비교 후보(et_wx)의 추가 입력 — 한 시간 전 확정값.
+# **결합에는 쓰지 않는다.** 기상 포함/제외가 동률(개발 실험 39.880 · 39.772)이라
+# 결합은 기상 미사용 ExtraTrees 로 두고, 이 후보는 그 판단을 지금 행 기준으로 남기려고 학습한다
+WEATHER_LAGGED = ["기온_lag4", "풍속_lag4", "습도_lag4", "강수량_lag4"]
+TREE_FEATURES_WX = TREE_FEATURES + WEATHER_LAGGED
+
 # 순환신경망: 전력 계열 창 + 달력 스칼라
 NET_SERIES = "kW"
 NET_CALENDAR = ["tod_sin", "tod_cos", "dow_sin", "dow_cos", "is_off", "days_since_active"]
@@ -90,7 +98,7 @@ NET_CALENDAR = ["tod_sin", "tod_cos", "dow_sin", "dow_cos", "is_off", "days_sinc
 # 모든 모델이 **같은 행**을 쓰게 만드는 규칙.
 # 어느 한 모델이라도 쓸 수 없는 행은 전부에서 뺀다 — 그래야 비교가 성립한다.
 ROW_RULE = {
-    "필수열": "TREE_FEATURES + NET_CALENDAR + ['kW','y']",
+    "필수열": "TREE_FEATURES_WX + NET_CALENDAR + ['kW','y']",
     "창규칙": "순환신경망 창이 시각 공백을 넘지 않아야 한다",
 }
 
@@ -106,5 +114,10 @@ TREE = {"n_estimators": 300, "max_features": 1.0, "min_samples_leaf": 3,
 RF = {**TREE, "bootstrap": True}
 BOOST = {"random_state": 42, "max_iter": 400, "learning_rate": 0.06}
 
-# 앙상블 — 고정 반반. 가중치를 고르지 않는다(구간마다 최적이 반대 방향이다)
-BLEND_WEIGHT = 0.5
+# 앙상블 — ExtraTrees(기상 미사용) 비중 w 와 GRU 비중 1-w 로 섞는다.
+# w 는 0.01~0.99 를 0.01 간격으로 훑어 **전진검증 평균 MSE 가 가장 낮은 값**으로 고른다.
+# 시험 구간은 고르는 데 쓰지 않는다(시험 최적 w 는 참고로만 기록한다).
+# 동률이면 BLEND_DEFAULT(0.5)에 가까운 쪽. 고른 값은 results.json·manifest.json 에 적히고
+# 서빙은 manifest 의 값을 쓴다
+BLEND_GRID = [round(i / 100, 2) for i in range(1, 100)]
+BLEND_DEFAULT = 0.5
