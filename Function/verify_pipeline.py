@@ -120,6 +120,10 @@ def main() -> int:
     sensitive = [c for c in feats if c not in cal_cols]
     n_hour = len(raw)
     CUTS = cut_points(raw)
+    # 원자료 행 → 그 행이 시작하는 시각. 깨진 날은 삭제되므로 행 순서를 시로 써도
+    # 그 날의 절단은 '그날 0시 이전' 과 같아진다(삭제된 날의 행은 결과에 없다)
+    raw_day = P.parse_dates(raw[C.DATE_COL])
+    cut_time = raw_day + pd.to_timedelta(raw.groupby(raw_day).cumcount(), unit="h")
     print(f"  절단점 {len(CUTS)}개 (비율 + 월 경계 + 월 중간 + 임의)")
     for hcut in CUTS:
         mut = raw.copy()
@@ -131,7 +135,9 @@ def main() -> int:
         if len(other) != len(base):
             ok(f"절단 {hcut}: 행수 보존", False, f"{len(base)} vs {len(other)}")
             continue
-        qcut = hcut * C.PER_HOUR                       # 15분 행 기준 절단 위치
+        # 15분 행 기준 절단 위치 — **시각으로** 찾는다. 시 열이 깨진 날을 삭제하면
+        # 원자료 행 번호 × 4 가 전처리 결과의 행 번호와 어긋나기 때문이다
+        qcut = int((base["ts"] < cut_time[hcut]).sum())
         pre = np.arange(C.PER_WEEK, qcut)              # 워밍업 뒤 ~ 절단 직전
         a_ = base.loc[pre, feats].to_numpy(float)
         b_ = other.loc[pre, feats].to_numpy(float)
@@ -186,8 +192,16 @@ def main() -> int:
         ok(f"{c} 를 제외했다", c in dropped)
     ok("생산량 을 남겼다 (보호 입력)", "생산량" not in dropped)
     steps = {s["단계"]: s for s in man["단계"]}
-    rep = steps.get("시 열 복구", {})
-    ok("시 열이 깨진 2일을 복구했다", rep.get("복구일") == 2, f"복구 {rep.get('복구일')}일")
+    rep = steps.get("시 열이 깨진 날 삭제", {})
+    ok("시 열이 깨진 2일을 삭제했다 (시를 다시 매기지 않는다)",
+       rep.get("제외일") == 2 and rep.get("제외행") == 2 * C.HOURS_PER_DAY,
+       f"삭제 {rep.get('제외일')}일 · {rep.get('제외행')}행")
+    kept = pd.to_datetime(pd.read_csv(C.OUT_DEFAULT, usecols=["ts"])["ts"]).dt.normalize()
+    gone = {pd.Timestamp(r["날짜"]) for r in rep.get("상세", [])}
+    ok("삭제한 날의 행이 결과에 남지 않았다", bool(gone) and not kept.isin(gone).any())
+    seg = steps.get("구간 분할", {})
+    ok("삭제한 날 자리가 시각 공백으로 구간을 나눴다", seg.get("구간수", 1) > 1,
+       f"구간 {seg.get('구간수')}개")
     imp = steps.get("결측 대치", {})
     ok("결측 4칸을 대치했다",
        sum(x["결측"] for x in imp.get("상세", [])) == 4)
@@ -215,6 +229,9 @@ def main() -> int:
         ok("지어낸 달력 열(요율구간)을 잡았다", "요율구간" in d2)
         ok("생산량 을 남겼다", "생산량" not in d2)
         s2 = {s["단계"]: s for s in m2["단계"]}
+        ok("시 열이 깨진 날을 삭제했다",
+           s2.get("시 열이 깨진 날 삭제", {}).get("제외일", 0) >= 1,
+           f"삭제 {s2.get('시 열이 깨진 날 삭제', {}).get('제외일')}일")
         ok("시 열이 정상인 불완전한 하루를 버리지 않았다",
            "행이 빠진 날 — 시 열은 정상이라 그대로 쓴다" in s2)
         ok("시각 공백을 구간으로 나눴다",

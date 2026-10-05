@@ -59,14 +59,17 @@ class Regressions(unittest.TestCase):
         self.assertEqual(len(x), mask.sum())
         self.assertFalse(M.window_ok(d.iloc[:20], 96).any())
 
-    def test_fractional_hour_is_repaired(self):
+    def test_broken_hour_day_is_dropped_not_repaired(self):
+        # 시 값 하나가 깨져도 그 날은 다시 매기지 않고 통째로 삭제한다 (행이 24개여도)
         raw = pd.read_csv(C.RAW_DEFAULT).iloc[:72].copy()
         raw[C.HOUR_COL] = raw[C.HOUR_COL].astype(float)
         raw.loc[24, C.HOUR_COL] = .5
+        broken_day = raw.loc[24, C.DATE_COL]
         log = P.Log(); log.add = lambda *a, **k: None
         d = P.fix_hour(P.check_schema(raw, log), log)
-        self.assertEqual(len(d), 72)
-        self.assertEqual(d.iloc[24]['_시'], 0)
+        self.assertEqual(len(d), 48)
+        self.assertFalse((d['_날짜'] == P.parse_dates(pd.Series([broken_day])).iloc[0]).any())
+        self.assertTrue(d['_시'].between(0, 23).all())
 
     def test_date_formats_and_bad_dates(self):
         got = P.parse_dates(pd.Series([20220101, 20220102.0, '2022-01-03', 'bad']))

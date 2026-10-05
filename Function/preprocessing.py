@@ -8,7 +8,8 @@
 이 자료(2021)에서 규칙이 실제로 잡아낸 것
 ------------------------------------------
   시 열이 깨진 날 2일      `시간` 에 70·89·…·188 이 들어 있다(0~23 범위 위반).
-                          정상 255일에서 '행 순서 == 시간' 일치율이 1.0 이므로 행 순서로 복구한다
+                          그 날의 값이 오염됐는지 알 수 없으므로 시를 다시 매기지 않고 **삭제**한다.
+                          공백 주변의 시차·정답·신경망 창은 구간 분할로 함께 빠진다
   파생/누수 열 2개         `평균` = 네 전력열 평균을 정수로 반올림(최대차 0.500)
                           `공장인원` = 생산량 ÷ Σ전력 — 6,151행 전부 정확히 일치.
                           **타깃을 역산할 수 있으므로 누수다.** 결측 17행은 Σ전력 = 0 인 행과 같다
@@ -94,19 +95,27 @@ def check_schema(raw: pd.DataFrame, log: Log) -> pd.DataFrame:
     return d
 
 
-# ══ 03. 시(hour) 열 검증·복구 ═══════════════════════════════════════
+# ══ 03. 시(hour) 열 검증 — 깨진 날은 삭제한다 ════════════════════════
 def fix_hour(d: pd.DataFrame, log: Log) -> pd.DataFrame:
-    """`시간` 이 깨진 날을 **행 순서**로 복구하거나, 못 믿으면 버린다.
+    """`시간` 이 깨진 날을 **통째로 삭제**한다. 값을 다시 매기지 않는다.
+
+    왜 복구하지 않나 — 시 값이 깨진 날은 **그 날의 다른 값도 오염됐는지 알 수 없다.**
+    행 개수가 24개로 맞는다고 행 순서로 시를 다시 매기면, 근거 없이 값을 자의적으로
+    정하는 것이 된다. 그래서 그 날을 지우고 시각축에 공백으로 남긴다.
+
+    **주변도 함께 빠진다** — 삭제한 날은 시각축의 공백이 되고, 구간 분할이 공백마다 구간을
+    나눈다. 그래서 공백을 넘는 시차·이동평균은 만들어지지 않고(공백 뒤 행의 입력이 결측),
+    공백 바로 앞 행은 정답(다음 15분)이 없어 빠지며, 공백을 넘는 순환신경망 입력 창도
+    `modeling.usable()` 에서 빠진다. 날짜를 코드에 박지 않으므로 다른 자료에도 그대로 돈다.
 
     두 가지를 **따로** 본다 — 섞으면 멀쩡한 자료를 버린다
       (A) 시 값이 쓸 수 있는가   0~23 정수이고 그 날 안에서 중복이 없는가
       (B) 그 날이 완전한가       행이 24개인가
 
     판정
-      A 통과            → 시 열을 그대로 쓴다. **B 와 무관하다.**
-                          행이 모자라면 시각축에 공백으로 남고 구간 분할이 처리한다
-      A 실패 + B 통과   → 날짜 안의 행 순서로 복구한다(정상일 일치율이 임계값을 넘을 때)
-      A 실패 + B 실패   → 시를 정할 근거가 없다. 그 날을 버린다
+      A 통과   → 시 열을 그대로 쓴다. **B 와 무관하다.**
+                 행이 모자라면 시각축에 공백으로 남고 구간 분할이 처리한다
+      A 실패   → 그 날을 삭제한다. 행이 24개여도 마찬가지다
 
     왜 (A)와 (B)를 나누나 — 시험 자료에서 `08-03` 은 시 열이 정상인데 행만 21개였다.
     둘을 묶어 "24행 순열" 로 재던 판은 그 하루를 통째로 버렸다. 멀쩡한 21행이었다.
@@ -125,20 +134,8 @@ def fix_hour(d: pd.DataFrame, log: Log) -> pd.DataFrame:
     good = [k for k, ok in hour_ok.items() if ok]
     bad = [k for k, ok in hour_ok.items() if not ok]
 
-    # 행 순서로 복구해도 되는지 **정상일에서만** 측정한다.
-    # 완전한 정상일만 쓴다 — 행이 빠진 날은 순서와 시가 당연히 어긋난다
-    ref = [k for k in good if complete[k]]
-    if ref:
-        gm = d[d["_날짜"].isin(ref)]
-        order = gm.groupby("_날짜").cumcount().to_numpy()
-        agree = float((order == gm[C.HOUR_COL].to_numpy()).mean())
-    else:
-        agree = 0.0
-
     log.add("시 열 검증", 시값정상일=len(good), 시값깨진일=len(bad),
-            불완전일=int(sum(1 for k, c in complete.items() if not c)),
-            행순서_일치율=round(agree, 6), 임계값=C.ROW_ORDER_AGREEMENT_MIN,
-            기준일수=len(ref))
+            불완전일=int(sum(1 for k, c in complete.items() if not c)))
 
     hours = pd.to_numeric(d[C.HOUR_COL], errors="coerce")
     d["_시"] = hours.where(np.isfinite(hours) & hours.between(0, 23) & hours.mod(1).eq(0)).astype("Int64")
@@ -154,25 +151,16 @@ def fix_hour(d: pd.DataFrame, log: Log) -> pd.DataFrame:
                    "완전한가": complete[k],
                    "시간열_값": d.loc[d["_날짜"] == k, C.HOUR_COL].tolist()[:8]}
                   for k in bad]
-        repairable = agree >= C.ROW_ORDER_AGREEMENT_MIN
-        fix = [k for k in bad if complete[k]] if repairable else []
-        drop = [k for k in bad if k not in fix]
-        if fix:
-            m = d["_날짜"].isin(fix)
-            d.loc[m, "_시"] = d.loc[m].groupby("_날짜").cumcount().to_numpy()
-            log.add("시 열 복구", 방법="날짜 안의 행 순서", 복구일=len(fix),
-                    근거=f"완전한 정상일 {len(ref)}일에서 일치율 {agree:.4f} "
-                       f"≥ {C.ROW_ORDER_AGREEMENT_MIN}",
-                    상세=[r for r in detail if r["완전한가"]])
-        if drop:
-            d = d[~d["_날짜"].isin(drop)].copy()
-            log.add("시를 정할 수 없어 날짜 제외", 제외일=len(drop),
-                    이유=("행 순서 일치율이 임계값 미만" if not repairable
-                          else f"시 값이 깨졌고 행도 {C.HOURS_PER_DAY} 개가 아니다"),
-                    상세=[r for r in detail if r in detail and not r["완전한가"]
-                         or not repairable])
+        before = len(d)
+        d = d[~d["_날짜"].isin(bad)].copy()
+        log.add("시 열이 깨진 날 삭제", 제외일=len(bad), 제외행=before - len(d),
+                이유="시 값이 0~23 정수가 아니거나 날짜 안에서 중복된다. 그 날의 다른 값도 "
+                     "오염됐는지 알 수 없어 시를 다시 매기지 않고 삭제한다",
+                주변처리="삭제한 날은 시각축 공백이 되고, 공백을 넘는 시차·이동평균·정답·"
+                        "순환신경망 창은 구간 분할과 공통행 규칙으로 함께 빠진다",
+                상세=detail)
     else:
-        log.add("시 열 복구", 방법="필요 없음", 복구일=0)
+        log.add("시 열이 깨진 날 삭제", 제외일=0, 제외행=0)
 
     if d["_시"].isna().any():
         raise SystemExit("✗ 시(hour)를 정하지 못한 행이 남았다")
