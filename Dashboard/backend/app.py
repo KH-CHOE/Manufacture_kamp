@@ -14,7 +14,7 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -125,6 +125,61 @@ def default_staffing(day: str, planned_production: float = Query(..., ge=0, le=1
 @app.post("/api/optimization")
 def optimize_staffing(spec: StaffingSpec):
     return _staffing(spec)
+
+
+# ── 브리핑·질의 (ChatGPT) ─────────────────────────────────────────
+# API 키는 요청 헤더 X-OpenAI-Key 로만 받는다. 저장하지 않고 응답·오류 메시지에 담지 않는다.
+class BriefingSpec(BaseModel):
+    day: str
+    cursor: int = Field(ge=0)
+    threshold: float | None = Field(None, gt=0, le=10000)
+    model: str | None = Field(None, max_length=60)
+
+
+class ChatMessage(BaseModel):
+    role: str = Field(pattern="^(user|assistant)$")
+    content: str = Field(max_length=4000)
+
+
+class ChatSpec(BriefingSpec):
+    messages: list[ChatMessage] = Field(min_length=1, max_length=24)
+
+
+def _llm_error(e: Exception) -> HTTPException:
+    # 라이브러리 예외 문구에 키 일부가 섞일 수 있어 종류만 알린다
+    name = type(e).__name__
+    if name == "AuthenticationError":
+        return HTTPException(401, "API 키가 올바르지 않습니다. 키를 확인해주세요.")
+    if name == "RateLimitError":
+        return HTTPException(429, "요청 한도를 넘었거나 크레딧이 부족합니다. 잠시 뒤 다시 시도해주세요.")
+    if name in ("NotFoundError", "BadRequestError"):
+        return HTTPException(400, "모델 이름이나 요청 형식이 맞지 않습니다.")
+    return HTTPException(502, "언어 모델 호출에 실패했습니다. 네트워크와 키를 확인해주세요.")
+
+
+@app.post("/api/briefing")
+def briefing(spec: BriefingSpec, x_openai_key: str | None = Header(None)):
+    import assistant as A
+    try:
+        return A.briefing(spec.day, spec.cursor, spec.threshold, x_openai_key, spec.model)
+    except KeyError as e:
+        raise HTTPException(404, str(e)) from e
+    except Exception as e:
+        raise _llm_error(e) from None
+
+
+@app.post("/api/chat")
+def chat(spec: ChatSpec, x_openai_key: str | None = Header(None)):
+    import assistant as A
+    if not x_openai_key:
+        raise HTTPException(401, "질문에 답하려면 OpenAI API 키가 필요합니다.")
+    try:
+        return A.chat(spec.day, spec.cursor, [m.model_dump() for m in spec.messages],
+                      spec.threshold, x_openai_key, spec.model)
+    except KeyError as e:
+        raise HTTPException(404, str(e)) from e
+    except Exception as e:
+        raise _llm_error(e) from None
 
 
 _dist = ROOT / "dist"
