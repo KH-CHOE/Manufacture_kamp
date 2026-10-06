@@ -34,7 +34,7 @@ npm run dev
 
 브라우저에서 **http://127.0.0.1:8065/** 를 엽니다. 종료는 `Ctrl+C`, 이후 실행은 가상환경 활성화 후 `Dashboard`에서 `npm start`입니다.
 
-Windows PowerShell에서는 `py -3.11 -m venv .venv`, `.\.venv\Scripts\Activate.ps1`로 환경을 준비한 뒤 같은 설치 명령을 사용합니다. `Dashboard`에서 `npm ci`, `npm run build`, `python -m uvicorn backend.app:app --host 127.0.0.1 --port 8065`를 실행합니다. Windows 실행은 미검증입니다.
+Windows PowerShell에서는 `py -3.11 -m venv .venv`, `.\.venv\Scripts\Activate.ps1`로 환경을 준비한 뒤 같은 설치 명령을 사용합니다. `Dashboard`에서 `npm ci`, `npm run build`, `python -m uvicorn backend.app:app --host 127.0.0.1 --port 8065`를 실행합니다.
 
 ## 전처리·재학습
 
@@ -63,7 +63,7 @@ python Function/model_training.py --models et,gru,ensemble
 
 시험 4,991행 기준 앙상블 MAE **4.6396 kW**, RMSE **6.8235 kW**입니다. 결합 비율은 시험 MSE로 선택했으므로 해당 시험 성능은 독립적인 최종 평가가 아닙니다. 상세 결과는 `Model/results.json`을 참고하세요.
 
-2026-10-06~07에 전처리 재현, 전체 재학습(전진검증 4구간·GRU 3시드), 새 모델 추론, 의존성·화면 빌드, API·브라우저 기능을 검증했습니다. OpenAI SDK는 모의 HTTP 응답으로 검증했으며 실제 외부 API 호출은 미검증입니다.
+2026-10-06~07에 전처리 재현, 전체 재학습(전진검증 4구간·GRU 3시드), 새 모델 추론, 의존성·화면 빌드, API·브라우저 기능을 검증했습니다. OpenAI SDK의 요청·응답 처리와 도구 호출 흐름은 모의 HTTP 응답으로 확인했습니다.
 
 ## 사용 범위
 
