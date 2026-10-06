@@ -19,8 +19,7 @@ __pycache__/
 # model_rf.joblib(34MB)은 비교용일 뿐이고 2분이면 다시 학습되므로 담지 않는다.
 #   python Function/modeling.py --models rf
 Model/model_rf.joblib
-# model_et_wx.joblib 도 기상 포함 비교 후보일 뿐 결합에 쓰지 않는다
-Model/model_et_wx.joblib
+# model_et_wx.joblib(기상 포함 비교 후보)는 **담는다** — 팀 결정으로 세 모델을 함께 올린다
 
 # Function/ 이 만드는 중간·시험 산출물
 Function/_pred_*.npz

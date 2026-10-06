@@ -83,7 +83,8 @@ python Function/preprocessing.py --raw 새자료.csv --out 정리자료.csv --no
 - `net_infer.py`: 신경망 추론을 별도 프로세스로 실행한다. sklearn과 PyTorch의 OpenMP 충돌을 피한다.
 - `verify_serving.py`: 저장물만으로 시험 점수와 평가행을 재현하는지 검사한다.
 
-RandomForest·ExtraTrees+기상 저장물은 Git에서 제외되어 있다(비교용). 직접 사용하려면 재학습한다.
+RandomForest 저장물은 Git에서 제외되어 있다(비교용). 직접 사용하려면 재학습한다. ExtraTrees+기상(`model_et_wx.joblib`)은 담는다.
+- `compare_weather_blend.py`: 기상 미사용/사용 트리 각각의 GRU 결합을 같은 규칙으로 비교한다 (`Model/weather_blend_comparison.json`).
 
 - `assistant.py`: 대시보드 전력 브리핑·질의의 하네스(공정·요금·모델 설명)와 도구. 숫자는 이 파일이 계산하고 언어 모델은 설명·권고만 한다. 자세한 내용은 `Dashboard/README.md`.
 
