@@ -343,7 +343,7 @@ def scenario(day: str, cursor: int, production: float, staff: int, hourly_wage: 
                            "+ 인원 × 시급 × 0.25시간. 기본요금 제외.")}
 
 
-def staffing(day: str, cursor: int = 48, **over) -> dict:
+def staffing(day: str, cursor: int = 48, *, historical_replay: bool = False, **over) -> dict:
     """정시 직전 예측과 사용자 계획 생산량으로 참고 비용을 계산한다."""
     data = _day(day)
     cursor = min(cursor, len(data) - 1)
@@ -354,7 +354,9 @@ def staffing(day: str, cursor: int = 48, **over) -> dict:
     hit = f.loc[(f["forecast_time"] == issued) & (f["target_time"] == hour)]
     if len(hit) != 1:
         raise ValueError("이 시간대의 정시 직전 45분 예측이 없습니다. 다음 시점으로 이동해주세요.")
-    r = _state["optimizer"].hourly_interval(
+    optimizer = _state["optimizer"]
+    calculate = optimizer.replay_hourly_interval if historical_replay else optimizer.hourly_interval
+    r = calculate(
         issued, hour, float(hit.iloc[0]["prediction"]),
         **{k: v for k, v in over.items() if v is not None})
     return {**r, "cursor": cursor, "asOf": iso(now)}

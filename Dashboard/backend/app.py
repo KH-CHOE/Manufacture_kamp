@@ -85,8 +85,7 @@ class TariffRates(BaseModel):
     winter: LoadRates
 
 
-class StaffingSpec(BaseModel):
-    planned_production: float = Field(ge=0, le=1000000, allow_inf_nan=False)
+class StaffingInputs(BaseModel):
     day: str
     cursor: int = Field(48, ge=0)
     unit_price: float | None = Field(None, ge=0, le=1000000, allow_inf_nan=False)
@@ -95,6 +94,21 @@ class StaffingSpec(BaseModel):
     rate_table: TariffRates | None = None
     base_rate: float | None = Field(None, ge=0, le=1000000, allow_inf_nan=False)
     billing_peak: float | None = Field(None, ge=0, le=1000000, allow_inf_nan=False)
+
+
+class StaffingSpec(StaffingInputs):
+    planned_production: float = Field(ge=0, le=1000000, allow_inf_nan=False)
+
+
+@app.post("/api/optimization/replay")
+def replay_staffing(spec: StaffingInputs):
+    try:
+        params = spec.model_dump(exclude_none=True)
+        return S.staffing(**params, historical_replay=True)
+    except KeyError as e:
+        raise HTTPException(404, str(e)) from e
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
 
 
 def _staffing(spec: StaffingSpec):

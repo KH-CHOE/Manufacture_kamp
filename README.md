@@ -1,41 +1,90 @@
-# 자원 최적화 — 다음 15분 전력 예측
+# 제조공장 전력 예측 및 자원 최적화 대시보드
 
-제6회 K-인공지능 제조데이터 분석 경진대회 과제 ⑤.
+제6회 K-인공지능 제조데이터 분석 경진대회 과제 ⑤의 제출 프로젝트입니다. 제공된 제조공장 데이터를 전처리하고 다음 15분의 전력을 예측하며, 과거 기록을 재생하는 대시보드에서 전력 추이·피크 경보·인원 및 비용 계산을 확인할 수 있습니다.
 
+## 1. 주요 기능
+
+- **전력 관제:** 실제 전력과 다음 15분 예측, 날짜·시점 선택 및 재생, CSV 내보내기.
+- **피크 경보:** 재생 시점까지 관측된 올해 최대 피크, 예측 오차를 반영한 참고 알림 기준, 직접 설정한 기준의 초과 경고.
+- **자원 최적화:** 대상 정시의 과거 생산 실적을 자동 조회하고, 이전 날짜의 같은 시간·날 유형 실적에서 목표 이상을 달성한 참고 인원과 비용을 계산.
+- **AI 챗:** API 키 없이 수치 기반 대화체 요약 제공. OpenAI API 키 입력 시 모델의 설명·질의응답·음성 기능 제공.
+
+이 화면은 제공된 **2021년 데이터의 과거 기록 재생**입니다. 실시간 센서 수집이나 설비 자동 제어 기능은 포함하지 않습니다.
+
+## 2. 폴더 구조
+
+```text
+Git/ 또는 저장소 루트/
+├── README.md                       전체 설명 및 실행 안내
+├── requirements.txt                Python 환경 버전
+├── .python-version                 Python 버전 기록
+├── Dataset/
+│   ├── raw/okm_augumented_2021.csv  제공 원본 데이터
+│   └── preprocessed/
+│       ├── processed.csv           현재 모델 입력 데이터
+│       └── processed_manifest.json 전처리 규칙·처리 결과·파일 지문
+├── Model/
+│   ├── model_et.joblib             ExtraTrees 모델
+│   ├── model_et_wx.joblib          기상 포함 ExtraTrees 비교 모델
+│   ├── model_hgb.joblib            HistGradientBoosting 비교 모델
+│   ├── model_gru.pt                GRU 모델 및 표준화 정보
+│   ├── model_lstm.pt               LSTM 비교 모델
+│   ├── results.json               모델별 성능 및 결합 비율
+│   ├── manifest.json              모델·데이터·환경의 일치 검사 정보
+│   ├── duplicate_evaluation.json   반복 날짜 제외 보조 평가
+│   └── weather_blend_comparison.json 기상 포함 여부 비교
+├── Function/
+│   ├── config.py                  경로·변수·학습 설정
+│   ├── preprocessing.py           원본 전처리 및 입력 변수 생성
+│   ├── modeling.py                모델 학습·평가·저장
+│   ├── artifacts.py               파일 지문과 저장 모델 일치 검사
+│   ├── evaluate_duplicates.py     학습에 포함된 보조 평가
+│   ├── compare_weather_blend.py   기상 포함·미포함 결합 비교
+│   ├── serving.py                 모델 로드·예측·조회
+│   ├── net_infer.py               신경망 추론 전용 프로세스
+│   ├── optimization.py            인원·비용 계산
+│   ├── assistant.py               대화체 요약·OpenAI 연결
+│   ├── calendar_2021.json         공휴일·분할 설정
+│   └── tariff.json                전력 요금·부하 시간대
+└── Dashboard/
+    ├── backend/app.py             FastAPI API·정적 화면 제공
+    ├── backend/requirements.txt   서버 직접 의존성
+    ├── src/                       React·TypeScript 화면
+    ├── public/fonts/              글꼴 및 LICENSE.txt
+    ├── index.html                 화면 진입점
+    ├── build.mjs                  프론트엔드 빌드
+    ├── tsconfig.json              TypeScript 설정
+    ├── package.json               npm 실행 명령
+    └── package-lock.json          JavaScript 의존성 버전
 ```
-Dataset/
-  raw/               원자료 CSV
-  preprocessed/      전처리 결과 + 판정 기록(manifest)
-Model/               학습 산출물 — 모델 파일과 results.json
-Function/            전처리 + 학습 + 추론 + 자원 최적화
-Dashboard/           React 화면 + FastAPI 서버
-archive/
-  prev_contest/      지난 대회 작업
-  this_contest/      이번 대회 모델링 이력 (Modeling · Modeling_RNN · Modeling_GRU_Tree_Ensemble)
+
+과거 작업 이력과 검증 전용 스크립트는 제출 구성에서 제외했습니다. 모델 파일의 지문·환경·입력 일치를 검사하는 `artifacts.py`는 실제 실행에 필요하므로 포함합니다.
+
+## 3. 데이터와 실행 흐름
+
+```text
+Dataset/raw → Function/preprocessing.py → Dataset/preprocessed
+                                               ↓
+                                Function/modeling.py → Model
+                                               ↓
+                             Function/serving.py (모델 추론)
+                                               ↓
+                            Dashboard/backend/app.py (API)
+                                               ↓
+                                  Dashboard/src (화면)
 ```
 
-코드(`Function/`)와 자료(`Dataset/`)·산출물(`Model/`)을 갈라 뒀다.
-화면의 API 서버는 `Function/serving.py`를 통해 `Model/`과 `Dataset/preprocessed/`를 읽는다.
+최초 실행에는 저장된 전처리 데이터와 모델을 사용합니다. 원본 전처리와 재학습은 자동 실행되지 않습니다. 자원 최적화는 원본의 시간당 생산 실적과 파생 인원 자료도 조회합니다.
 
-## 어디부터 보면 되나
+## 4. 대시보드 실행
 
-| 하고 싶은 것 | 보는 곳 |
-|---|---|
-| 화면을 띄운다 | `Dashboard/README.md` |
-| 자료를 다시 전처리한다 | `Function/README.md` |
-| 모델을 다시 비교한다 | 같은 문서. `python Function/modeling.py` |
-| 어떤 모델이 왜 뽑혔는지 | `Model/results.json` |
-| 예전에 뭘 했는지 | `archive/this_contest/*/README.md` |
+### 환경
 
-## 대시보드 실행 환경
-
-Python **3.11.17**과 Node.js/npm이 필요하다. macOS arm64에서 Node.js **24.9.0**,
-npm **11.6.0**으로 실행을 확인했다. Windows 명령도 아래에 제공하지만 Windows 실행은 아직 검증하지 않았다.
-`.python-version`은 버전 관리 도구용 기록이며, 시스템 Python 버전을 자동으로 바꾸지는 않는다.
+Python **3.11.17**, Node.js와 npm이 필요합니다. macOS arm64에서 Node.js 24.9.0·npm 11.6.0으로 실행한 환경을 기준으로 합니다. 저장 모델은 **scikit-learn 1.2.2**에서 생성되었으므로 루트 `requirements.txt`의 버전을 사용하세요. Windows 명령은 제공하지만 Windows 실행 검증은 하지 않았습니다.
 
 ### macOS / Linux
 
-저장소 루트에서 Python 3.11로 가상환경을 만들고 활성화한다.
+저장소 루트에서 실행합니다.
 
 ```bash
 python3.11 -m venv .venv
@@ -48,9 +97,6 @@ npm run dev
 
 ### Windows PowerShell
 
-Python 3.11을 설치한 뒤 저장소 루트에서 실행한다.
-활성화 스크립트 없이 가상환경 Python을 직접 호출하므로 PowerShell 실행 정책 변경은 필요 없다.
-
 ```powershell
 py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
@@ -60,29 +106,41 @@ npm run build
 ..\.venv\Scripts\python.exe -m uvicorn backend.app:app --host 127.0.0.1 --port 8065
 ```
 
-브라우저에서 <http://127.0.0.1:8065>를 연다. 종료는 서버 터미널에서 `Ctrl+C`.
-저장소에 전처리 데이터와 모델이 포함되어 있어 최초 실행에 전처리나 재학습은 필요 없다.
-다음 실행에는 macOS/Linux에서 가상환경 활성화 후 `Dashboard`에서 `npm start`를,
-Windows에서는 위의 가상환경 Python 서버 명령을 사용한다. 화면 코드를 바꾸면 다시 빌드한다.
+브라우저에서 **http://127.0.0.1:8065/** 를 엽니다. 종료하려면 서버 터미널에서 `Ctrl+C`를 누릅니다. 다음 실행에는 가상환경을 활성화한 뒤 `Dashboard`에서 `npm start`를 사용합니다. 프론트엔드 코드를 변경하면 `npm run build` 후 새로고침하세요.
 
-### 협업 시 환경 관리
+`.venv/`, `node_modules/`, `Dashboard/dist/`, Python 캐시는 실행 중 생성되는 로컬 파일이며 제출 소스에 포함할 필요가 없습니다. `.git/`는 로컬 저장소 관리 정보입니다. 폴더를 압축 제출할 때 이 항목과 `.env`·API 키를 제외하세요.
 
-- `.venv/`, `node_modules/`, `Dashboard/dist/`는 각자 생성하며 Git에서 제외한다.
-- 루트 `requirements.txt`는 정상 실행한 환경의 전체 패키지 버전을 고정한다.
-  하위 폴더의 requirements는 해당 기능의 직접 의존성을 기록한다.
-- Python 패키지를 변경하면 루트와 해당 하위 requirements를 함께 갱신하고 실행을 확인한다.
-- 프런트엔드 패키지를 변경하면 `package.json`과 `package-lock.json`을 함께 커밋한다.
-  팀원은 변경을 내려받은 뒤 `npm ci`로 설치한다.
-- 현재 `Model/model_et.joblib`은 **scikit-learn 1.2.2**로 저장됐다.
-  다른 버전으로 읽으면 모델 로딩에 실패할 수 있다. 버전을 올릴 때는 같은 버전으로 재학습하고
-  모델 파일, 의존성, 평가 결과를 함께 갱신한다.
-- 팀원이 변경을 내려받은 뒤에는 가상환경에서 루트 requirements를 다시 설치한다.
-  이 파일은 macOS 실행 환경에서 검증했으며, 다른 OS에서 설치·실행 문제가 생기면 공유해 함께 확인한다.
+## 5. 전처리와 재학습
 
-## 지금 결과
+가상환경을 활성화한 후 저장소 루트에서 실행합니다.
 
-공통 24,192행 · 시험 4,991행 · 전진검증 4구간. 수치는 MSE이며 낮을수록 좋다.
-(2026-10-06 재학습 — `시간` 열이 깨진 날 삭제 · 기상 포함 ExtraTrees 후보 · 결합 비율 탐색 반영)
+```bash
+python Function/preprocessing.py
+python Function/modeling.py --models baseline,rf,et,hgb,et_wx,gru,lstm,ensemble
+```
+
+재학습은 시간이 오래 걸리며 `Model/`의 모델·평가 결과·파일 지문을 갱신합니다. 실행용 모델을 임의로 섞어 교체하지 마세요. 전체 학습은 구간·시드별 완료 결과를 재사용합니다.
+
+### 전처리 규칙
+
+- 한 시간의 네 전력 열을 15분 간격으로 펼치고 다음 구간 전력을 정답으로 만듭니다.
+- 시간은 0~23의 정수이며 날짜 내 중복이 없어야 합니다. 비정상 시간이 있는 날짜는 통째로 제외합니다. 정상 시간이 있는 불완전 날짜는 유지합니다.
+- 결측은 해당 시점 이전 관측만의 누적 중앙값으로 처리합니다. 시간 공백을 넘는 시차·이동 통계·신경망 입력 창은 사용하지 않습니다.
+- 전력을 역산할 수 있는 파생 열과 달력 정보를 다시 적은 열은 모델 입력에서 제외합니다.
+- 생산량·기상 같은 시간당 정보는 한 시간 늦춘 변수로 생성하며 동일 시간의 미확정 원값을 모델 입력에 넣지 않습니다.
+- 처리 결과와 이유는 `Dataset/preprocessed/processed_manifest.json`에 남깁니다.
+
+다른 자료의 경로와 달력은 다음처럼 지정할 수 있습니다. 해당 자료의 형식·열 이름은 `Function/config.py`의 스키마와 맞아야 합니다.
+
+```bash
+python Function/preprocessing.py --raw 새자료.csv --out 정리자료.csv --calendar Function/calendar_2022.json
+```
+
+## 6. 모델 구성과 성능
+
+현재 화면은 **ExtraTrees 0.47 + GRU 0.53**의 결합 예측을 사용합니다. ExtraTrees는 과거 전력·달력 변수를, GRU는 과거 96개 구간(하루)의 전력과 달력 변수를 사용합니다. 기상 포함 ExtraTrees는 비교 후보로 보관하며 현재 결합에는 사용하지 않습니다.
+
+저장된 결과 기준 공통 평가 대상은 24,192행, 시험은 4,991행, 전진검증은 4구간입니다. 아래 지표는 MSE이며 낮을수록 좋습니다.
 
 | 모델 | 전진검증 평균 | 구간 간 표준편차 | 반복 날짜 제외 검증 | 시험 |
 |---|---:|---:|---:|---:|
@@ -96,104 +154,42 @@ Windows에서는 위의 가상환경 Python 서버 명령을 사용한다. 화�
 | 직전값 유지 | 199.67 | 12.81 | 151.40 | 180.33 |
 | 시각×요일 중앙값 | 1313.08 | 994.86 | 1337.32 | 1540.06 |
 
-**결합(ExtraTrees + GRU)이 전진검증·시험·반복 날짜 제외 검증 모두에서 1위다.**
+상세 결과는 `Model/results.json`, 기상 변수 비교는 `Model/weather_blend_comparison.json`에 있습니다. 모델마다 입력과 학습 기간이 다르므로 성능 차이를 알고리즘 자체의 우열로 단정하지 않습니다.
 
-**결합 비율 — 시험 구간 기준으로 골랐다(팀 결정).** 트리 비중을 0.01~0.99 로 훑어 시험 MSE 가 가장 낮은
-**0.47**(GRU 0.53)를 쓴다. **시험이 고르는 데 쓰였으므로 결합의 시험 MSE 46.56 는 낙관적이다.**
-고르는 데 쓰지 않은 값은 전진검증(37.29)이다. 참고로 고정 0.5 는 전진 36.98 · 시험 46.59,
-전진검증 기준으로 골랐다면 0.68(전진 36.11 · 시험 47.91)였다.
-기준은 `Function/config.py` 의 `BLEND_SELECT` 로 바꿀 수 있다(`"test"` · `"forward"`).
+**평가 해석:** 결합 비율은 시험 구간 MSE를 최소화하도록 선택했습니다. 따라서 결합 시험 성능은 비율 선택에 사용된 값이며 독립적인 최종 평가가 아닙니다. 반복 날짜 제외 평가는 중복 전력곡선의 영향을 확인하기 위한 보조 결과이고 일부 구간의 날짜 수가 적습니다. 새 외부 데이터에 대한 성능 보장은 아닙니다.
 
-### 결합에 왜 기상을 쓰지 않는 트리를 넣었나
+## 7. 자원 최적화의 계산 방식
 
-깃허브에 올라간 모델은 셋이다 — **기상 쓰는 ExtraTrees**(`model_et_wx.joblib`, 비교 후보),
-**기상 안 쓰는 ExtraTrees**(`model_et.joblib`), **기상 안 쓰는 ExtraTrees + GRU 결합**(`model_et.joblib` + `model_gru.pt`,
-비율은 `manifest.json` 의 `blend_weight`). 결합은 별도 파일 없이 서버가 두 모델을 그 비율로 섞는다.
+현재 화면은 과거 기록 재생용입니다. 정시 직전 45분 예측을 사용해 해당 정시부터 한 시간의 생산 목표·인원·비용을 표시합니다. 생산 목표는 그 정시의 기록된 생산 실적에서 자동 조회합니다.
 
-두 결합을 같은 규칙(트리 비중 0.01~0.99, 시험 MSE 최소)으로 비교했다.
+- **인원:** 대상 날짜보다 앞선 기록 중 같은 시간·평일/휴일 유형이고 목표 이상을 생산한 사례의 파생 인원을 올림하여 최소값을 선택합니다. 일치 사례가 없으면 미산정으로 표시합니다.
+- **생산 이익:** 시간당 생산 목표 × 개당 생산 이익.
+- **인건비:** 참고 인원 × 시간당 시급. 22:00~06:00에는 1.5배를 적용합니다.
+- **전력량 요금:** 정시 예측 전력 × 1시간 × 계절·부하별 단가.
+- **기본요금 배분:** 작년 피크 전력 × 기본요금 단가 ÷ 해당 월 일수 ÷ 24.
+- **시간당 영업 이익:** 생산 이익 − 인건비 − 전력량 요금 − 기본요금 배분.
 
-| 결합 | 비율(트리) | 시험 | 전진검증 |
-|---|---:|---:|---:|
-| 기상 안 쓰는 ExtraTrees + GRU (**서빙**) | 0.47 | 46.56 | 37.29 |
-| 기상 쓰는 ExtraTrees + GRU (비교) | 0.48 | 46.23 | 37.12 |
+원자료의 `공장인원`은 생산량과 전력에서 계산한 파생값이며 실제 배치 인원을 뜻하지 않습니다. 화면의 추천은 과거 사례 기반 참고값입니다. 전력비는 15분 예측이 한 시간 유지된다는 가정이며 2021년 요금표를 사용합니다. 실제 청구서 전체 항목과 세금을 재현하지 않습니다.
 
-**기상판이 조금 낫다.** 시험 -0.33, 전진검증 -0.17.
-그래도 기상 안 쓰는 판을 결합에 넣은 이유는 두 가지다.
+개당 이익·시급·피크 전력의 ‘기본값’ 체크와 요금표 적용값은 브라우저에 저장할 수 있습니다.
 
-1. **차이가 구별할 수 없을 만큼 작다.** 전진검증 차이 0.17 는 구간 간 표준편차 18.3 보다
-   훨씬 작고, 개발 단계 실험에서도 기상 포함·제외가 동률이었다(39.880 · 39.772). 15분 앞에서는 지금 전력이
-   정보를 거의 다 담고 있어(순열 중요도 1위가 2위의 57.6배) 기상이 더할 것이 적다.
-2. **운영이 단순하고 안전하다.** 기상을 쓰면 실제 운영에서 기상 실황을 매시간 받아 와야 하고, 받아 오지 못하거나
-   늦으면 예측이 흔들린다. 기상은 정각 관측인지 시간 평균인지 원자료로 알 수 없어 한 시간 늦춘 값을 써야 하고,
-   결측을 어떻게 채우느냐(과거 중앙값 · 앞뒤 평균)에 따라 값도 달라진다. 기상 안 쓰는 판은 **변압기 전력 계측 하나만으로** 돈다.
+## 8. AI 챗 및 주요 API
 
-기상판으로 바꾸려면 결합 코드의 트리를 `et_wx` 로 바꾸고 재학습하면 된다. 비교는 `python Function/compare_weather_blend.py`
-(결과 `Model/weather_blend_comparison.json`).
+API 키가 없으면 실제 조회 수치를 정해진 대화체 문장에 넣어 요약합니다. OpenAI API 키가 있으면 수치·위험 판단 자료를 모델에 전달해 설명과 질문 답변을 생성합니다. 키는 브라우저 저장소에 저장되고 서버에는 요청 헤더로 전달됩니다. 서버는 키를 파일에 저장하지 않습니다. 외부 API 사용에는 네트워크 연결과 해당 계정의 이용 비용이 발생할 수 있습니다.
 
-**전진검증 기준 비율 판은 따로 올리지 않았다.** 전진검증으로 골랐다면 비율 0.68(전진 36.11 · 시험
-47.91)인데, 시험 기준 0.47(전진 37.29)과의 전진검증 차이
-1.18 가 구간 간 표준편차보다 훨씬 작다. 모델 파일이 같고 비율만 다르므로
-`results.json` 의 `결합비율탐색` 에 함께 기록하는 것으로 둔다.
+| API | 용도 |
+|---|---|
+| `GET /api/meta` | 재생 날짜·모델 정보 |
+| `GET /api/snapshot` | 선택 시점의 전력·예측·경보 |
+| `POST /api/optimization/replay` | 과거 생산 목표 자동 조회 및 비용 계산 |
+| `GET·POST /api/optimization` | 계획 생산량을 직접 지정하는 계산 API |
+| `POST /api/scenario` | 생산량·인원 시나리오 비교 |
+| `POST /api/briefing` | 전력 상태 설명 |
+| `POST /api/chat` | 자료 조회를 통한 질문 답변 |
+| `POST /api/speech` | OpenAI 음성 생성 |
 
-**전진검증 수치가 이전(공통 24,576행)보다 크게 낮아진 것은 행 기준이 바뀐 탓이다.** `시간` 열이 깨진 2021-07-13·07-15 를
-삭제하면서 7월 구간에서 7/13~7/16 나흘분 행이 빠졌다(2,304 → 1,920행). 7월 구간 ExtraTrees MSE 가 100.73 → 58.36 으로
-내려간 것이 평균을 끌어내렸다(빠진 날들의 오차를 따로 재지는 않았다 — 학습 자료도 함께 바뀌었다). 이전 수치와 나란히 비교하지 않는다.
-시험 구간 4,991행은 같다.
+모델·데이터 경로는 `MODEL_PATH`·`DATA_PATH` 환경변수로 지정할 수 있습니다. 현재 저장 모델은 파일 지문과 데이터·설정 일치 검사를 거치므로 임의 파일 교체 시 관련 저장 정보도 맞춰야 합니다.
 
-학습에 있던 것과 완전히 같은 하루 전력 곡선이 5월 검증 24일 중 13일, 6월 24일 중 23일에 반복된다. 이를 제외하면 6월은 하루만 남는다.
-4월·7월 검증과 시험에서는 이 기준의 반복 날짜가 없다. 불완전한 하루와 근사 중복은 검사하지 않았다.
+## 9. 글꼴 및 라이선스
 
-트리와 신경망은 입력 정보와 학습 기간이 다르고, 검증 구간도 네 개뿐이다. 작은 차이를 알고리즘의 확실한 우열로 해석하지 않는다.
-이번 시험 점수는 이미 검토한 시험 자료에서 오류를 고친 재평가이며, 새로운 외부 자료 검증은 아니다.
-
-전체 기록: [results.json](Model/results.json) · [반복 날짜 제외 평가](Model/duplicate_evaluation.json) · [수정·검증 내역](REVIEW_20261003.md)
-
-## 규약
-
-- 모델 순위는 **전진검증 평균 MSE** 로 매긴다
-- 순환신경망은 **시드 3개 예측을 평균**해 보고한다. 시험 성적으로 시드를 고르지 않는다
-- 결합 비율은 **시험 MSE 최소**로 고른다(트리 비중 0.01~0.99, 팀 결정). 그래서 결합의 시험 성적은 낙관적이다
-- 전처리는 **날짜를 코드에 박지 않는다.** 2022년 자료를 넣어도 돌아간다
-
-
-## 현재 데이터 흐름
-
-```text
-Dataset/raw
-    ↓ Function/preprocessing.py
-Dataset/preprocessed
-    ↓ Function/modeling.py
-Model/
-    ↓ Function/serving.py + Function/net_infer.py + Function/optimization.py
-Dashboard/backend (FastAPI)
-    ↓ HTTP API
-Dashboard/src (React)
-```
-
-전처리와 계산은 `Function/` 한 곳에서 공유한다. 예전 대시보드의 독립 파이프라인은
-`archive/dashboard_v1/`에 보관되어 있으며, 현재 화면에서는 사용하지 않는다.
-
-서버는 ExtraTrees(기상 미사용) 예측과 GRU의 시드 3개 평균 예측을 `Model/manifest.json` 의 `blend_weight`(시험 구간 기준으로 고른 트리 비중)로 결합한다.
-대시보드의 **전력 브리핑**은 화면에서 입력한 OpenAI API 키로 ChatGPT 브리핑·질의응답을 한다(키는 저장하지 않는다). `Dashboard/README.md` 참조.
-GRU 추론은 별도 프로세스에서 실행한다. GRU 파일이 없으면 트리 단독으로 동작하며 `/api/meta`에 실제 모델 구성이 표시된다.
-파일이 있는데 잘못됐거나 추론에 실패하면 서버 시작을 중단한다.
-
-현재 화면은 전력 관제와 인원·비용 가정을 제공한다. 계획 생산량은 사용자가 입력하며, 미래 실적을 자동으로 사용하지 않는다. 원자료의 공장인원은 생산량/전력 합으로 만든 파생값이므로 실제 최소 인원의 근거로 해석하지 않는다. 시나리오 API도 있지만 화면에서 직접 호출하지 않는다.
-생산량은 전력 예측 모델의 입력이 아니므로, 시나리오에서 생산량을 바꿔도 전력 예측은 바뀌지 않는다.
-
-## 실행 확인
-
-가상환경 Python으로 다음을 실행하면 저장 모델의 추론 결과와 보고된 시험 성능을 비교한다.
-
-```bash
-python Function/verify_pipeline.py
-python Function/verify_regressions.py
-python Function/verify_training.py
-python Function/verify_serving.py
-```
-
-macOS arm64에서 Python 3.11.17과 루트 requirements로 앙상블 로딩,
-전력 예측·자원 최적화 API 및 브라우저 화면 표시를 확인했다.
-
-이번 수정 모델의 학습·검증 Python은 3.11.7이며, 학습 라이브러리는 루트 requirements의 고정 버전과 같다.
-기존 3.11.17 실행 안내와 `.python-version`은 유지한다. 정확한 학습 버전과 파일 지문은 `Model/manifest.json`에 기록한다.
+화면은 우아한형제들의 **배민 한나체 Air(BM HANNA Air)**를 사용합니다. 글꼴 라이선스 전문은 `Dashboard/public/fonts/LICENSE.txt`에 포함되어 있습니다. 공식 안내: https://www.woowahan.com/fonts

@@ -1,7 +1,0 @@
-# Python 3.11.17. 저장된 model_et.joblib은 scikit-learn 1.2.2 형식이다.
-# 대시보드 전체 환경 설치는 저장소 루트 requirements.txt를 사용한다.
-pandas==2.2.2
-numpy==1.26.4
-scikit-learn==1.2.2
-torch==2.4.1
-joblib==1.4.2

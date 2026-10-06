@@ -7,8 +7,7 @@
     "dev": "npm run build && python3 -m uvicorn backend.app:app --host 127.0.0.1 --port 8065",
     "start": "python3 -m uvicorn backend.app:app --host 127.0.0.1 --port 8065",
     "prepare:data": "python3 ../Function/preprocessing.py",
-    "train:model": "python3 ../Function/modeling.py --models baseline,rf,et,hgb,et_wx,gru,lstm,ensemble",
-    "verify": "python3 ../Function/verify_pipeline.py"
+    "train:model": "python3 ../Function/modeling.py --models baseline,rf,et,hgb,et_wx,gru,lstm,ensemble"
   },
   "dependencies": {
     "react": "19.3.0",

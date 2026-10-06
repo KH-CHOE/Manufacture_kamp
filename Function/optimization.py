@@ -87,6 +87,19 @@ class StaffingOptimizer:
                                    & (prod.eq(0) | staff.gt(0)))
         self.raw["공장인원"], self.raw["생산량"] = staff, prod
 
+    def replay_hourly_interval(self, forecast_time, target_time, prediction, **over):
+        """Historical replay only: use the recorded hourly production as the target."""
+        hour = pd.Timestamp(target_time)
+        rows = self.raw.loc[self.raw.timestamp == hour]
+        if len(rows) != 1:
+            raise ValueError("해당 정시의 시간당 원자료가 없습니다. 다른 시간대를 선택해주세요.")
+        production = float(rows.iloc[0]["생산량"])
+        result = self.hourly_interval(forecast_time, target_time, prediction,
+                                      planned_production=production, **over)
+        result["productionBasis"] = "과거 기록 재생: 해당 정시의 실제 시간당 생산량"
+        result["mode"] = "historical_replay"
+        return result
+
     def hourly_interval(self, forecast_time, target_time, prediction, *,
                         planned_production=None, unit_price=None, day_wage=None, energy_rate=None,
                         rate_table=None, base_rate=None, billing_peak=None) -> dict:
