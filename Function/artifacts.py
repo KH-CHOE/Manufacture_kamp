@@ -17,7 +17,7 @@ def configuration():
             "window": C.NET["window"], "steps": C.NET["steps"],
             "tree_features_wx": C.TREE_FEATURES_WX,
             "blend_grid": [C.BLEND_GRID[0], C.BLEND_GRID[-1], len(C.BLEND_GRID)],
-            "blend_rule": "전진검증 평균 MSE 최소, 동률이면 0.5에 가까운 쪽"}
+            "blend_select": C.BLEND_SELECT}
 
 
 def write_manifest(data_path, result_path):

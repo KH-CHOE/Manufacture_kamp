@@ -74,12 +74,12 @@
       0.99,
       99
     ],
-    "blend_rule": "전진검증 평균 MSE 최소, 동률이면 0.5에 가까운 쪽"
+    "blend_select": "test"
   },
   "source_sha256": {
-    "config.py": "bfa50aaecf633cd6f99daec27b1ed7f073a6b3fdb56d063796fd7aa25046989a",
+    "config.py": "ec8c5cc06107a1ddde30b062078780abdfd91f8ec9424878cad07a581c434bc5",
     "preprocessing.py": "dc9f57c1f7ec3d63bf1afd6c3c6a22395f402aa071c31bb48b171c968a202eed",
-    "modeling.py": "2cd84972195d5bd08f14a838f30112eee0f5d544a989c3fc1f2fe324d9949b69",
+    "modeling.py": "937892622372ba81d21d5f91d38aaaf8307c4831785d87b2438da1716c93a772",
     "net_infer.py": "d12337ac9f6a0faa1f6bb959169a6a0f6a95bc8f0388e9caded0041acd4b5e4a"
   },
   "data_sha256": "29716dbe856ca8c6a88204c033c8aab4ff91cac7b481fd71ea60222417adc575",
@@ -91,7 +91,7 @@
     "model_et_wx.joblib": "bc8e1f98470b00df62d7482af05073fe7748adda95a012946ebfb7848cf6b514",
     "model_gru.pt": "94d9cd5341087328c4d07e06ca74120330e69cbf3f4b95261b5840259fc862c2",
     "model_lstm.pt": "b5c4120536f001430ab560aa516fce868be01610e4a9c9925681855d3f4d0a72",
-    "results.json": "8b9a2d5bcb33f9d45f464ab7047fc8b9649fc1e675709ca29f1f538817377838"
+    "results.json": "251eff4d6d78bfa204a6a4a4d1b9733d9d69079afe50bb11dbe8a4e887435695"
   },
   "python": "3.11.7",
   "packages": {
@@ -105,5 +105,5 @@
   "window_rule": "original observation axis; finite continuous 96 observations",
   "normalization": "first 85% training rows only; validation excluded",
   "ensemble": true,
-  "blend_weight": 0.68
+  "blend_weight": 0.47
 }

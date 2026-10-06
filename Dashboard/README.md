@@ -67,7 +67,7 @@ npm run train:model      # 전체 모델 재학습·비교·결합 결과 갱신
 | `GET·POST /api/optimization` | 계획 생산량에 따른 참고 인원·비용 가정 |
 | `POST /api/scenario` | 생산량·인원을 바꿔 비용 비교 |
 | `POST /api/briefing` | 재생 시점 전력 브리핑. 헤더 `X-OpenAI-Key` 가 있으면 ChatGPT, 없으면 숫자 요약 |
-| `POST /api/chat` | 공정·요금·피크 관리 질의응답(도구로 재생 시점 자료 조회). 키 필수 |
+| `POST /api/chat` | 15분 최대치 관리·공정 질의응답(도구로 재생 시점 자료 조회). 키 필수 |
 
 `/api/optimization`은 `planned_production`(해당 시간의 계획 생산량)을 필수로 받는다.
 미래 실적을 자동 사용하지 않으며, 화면에서 계획을 입력한 뒤 적용한다.
@@ -85,11 +85,12 @@ npm run train:model      # 전체 모델 재학습·비교·결합 결과 갱신
   브리핑은 **예측 구간이 끝나기 5분 전** 으로 표기한다. 예) t=10:45 → 11:00까지 확정 · 11:00~11:15 예측 →
   "11:10 브리핑". 재생 자료에 :10 시점 관측은 없으므로 본문에 "○○:○○까지 확정값"을 함께 적는다.
 - **하네스** — 시스템 지시문에 공정(볼트·너트, 변압기 총부하 계측), 예측 모델 구성·성능·한계
-  (`Model/results.json` 에서 읽음), 2021 한전 요금 구조(`Function/tariff.json`), 피크 관리 원칙
-  (설비 자동 정지 지시 금지, 실측 우선, 숫자 지어내기 금지)을 넣는다.
+  (`Model/results.json` 에서 읽음), **관리 목표 — 15분 단위 사용량의 최대치를 높지 않게 계속 유지**,
+  피크 관리 원칙(설비 자동 정지 지시 금지, 실측 우선, 숫자 지어내기 금지)을 넣는다.
+  요금 산정은 계약 조건에 따라 복잡해 다루지 않는다 — 금액 질문에는 계산하지 않는다고 답한다.
   **숫자는 서버가 계산한다** — 언어 모델은 그 숫자를 읽고 설명·권고만 한다.
 - **도구** — 질의응답에서 모델이 부른다. 재생 시점 이후 자료는 주지 않는다.
-  `get_briefing_facts` · `get_today_profile` · `get_tariff_schedule` · `estimate_energy_cost` · `get_model_info`
+  `get_briefing_facts` · `get_today_profile` · `get_model_info`
 - **모델** — 환경변수 `OPENAI_MODEL`(기본 `gpt-4o-mini`). 요청 본문 `model` 로 바꿀 수도 있다.
 - **비용 주의** — 연속 재생 중 자동 갱신을 켜 두면 칸마다 호출이 일어난다. 발표 시연 외에는 끄고 버튼을 쓰자.
 
@@ -104,7 +105,7 @@ npm run train:model      # 전체 모델 재학습·비교·결합 결과 갱신
 
 **기본 화면은 ExtraTrees(기상 미사용) + GRU 결합 예측을 사용한다.** 현재 점수는 `Model/results.json`에서 확인한다.
 `Model/model_et.joblib` 과 `Model/model_gru.pt` 를 둘 다 읽어 `Model/manifest.json` 의 `blend_weight`
-(트리 비중 — 학습이 전진검증으로 고른 값) 로 섞는다. 기록이 없으면 0.5.
+(트리 비중 — 시험 구간 MSE 최소로 고른 값, 팀 결정) 로 섞는다. 기록이 없으면 0.5.
 모델 정보 창에 결합 비율과 비교 후보(기상 포함 ExtraTrees 등) 성적이 나온다.
 
 모델의 파일 지문과 scikit-learn 버전을 `Model/manifest.json`과 대조한다.

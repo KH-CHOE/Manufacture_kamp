@@ -233,8 +233,9 @@ def meta() -> dict:
         if s:
             blend_search = {"chosen": s["선정_트리비중"], "forward": s["선정_전진평균"],
                             "test": s["선정_시험"], "halfForward": s["고정0.5_전진평균"],
-                            "halfTest": s["고정0.5_시험"], "testBest": s["참고_시험최적_트리비중"],
-                            "rule": s["기준"]}
+                            "halfTest": s["고정0.5_시험"], "select": s.get("선정기준"),
+                            "forwardBest": s.get("전진검증최적_트리비중"),
+                            "forwardBestTest": s.get("전진검증최적_시험"), "rule": s["기준"]}
     net_inputs = ([f"과거 {C.NET['window']}구간 전력({C.NET['window'] // C.PER_DAY}일)"]
                   + list(C.NET_CALENDAR) if _state["mode"] == "ensemble" else None)
     return {"days": days, "defaultDay": days[0], "model": name,

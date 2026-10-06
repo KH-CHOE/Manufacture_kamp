@@ -115,9 +115,10 @@ RF = {**TREE, "bootstrap": True}
 BOOST = {"random_state": 42, "max_iter": 400, "learning_rate": 0.06}
 
 # 앙상블 — ExtraTrees(기상 미사용) 비중 w 와 GRU 비중 1-w 로 섞는다.
-# w 는 0.01~0.99 를 0.01 간격으로 훑어 **전진검증 평균 MSE 가 가장 낮은 값**으로 고른다.
-# 시험 구간은 고르는 데 쓰지 않는다(시험 최적 w 는 참고로만 기록한다).
-# 동률이면 BLEND_DEFAULT(0.5)에 가까운 쪽. 고른 값은 results.json·manifest.json 에 적히고
-# 서빙은 manifest 의 값을 쓴다
+# w 는 0.01~0.99 를 0.01 간격으로 훑어 **시험 구간 MSE 가 가장 낮은 값**으로 고른다(2026-10-06 팀 결정).
+# 시험이 고르는 데 쓰였으므로 결합의 시험 성적은 낙관적이다 — 결과 파일에 그 사실과
+# 전진검증 기준으로 골랐을 때의 값을 함께 적는다. 동률이면 BLEND_DEFAULT(0.5)에 가까운 쪽.
+# 고른 값은 results.json·manifest.json 에 적히고 서빙은 manifest 의 값을 쓴다
 BLEND_GRID = [round(i / 100, 2) for i in range(1, 100)]
 BLEND_DEFAULT = 0.5
+BLEND_SELECT = "test"            # "test" = 시험 MSE 최소 · "forward" = 전진검증 평균 MSE 최소

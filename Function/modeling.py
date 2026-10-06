@@ -392,11 +392,12 @@ def run_nets(original: pd.DataFrame, folds: list[list[int]], want: list[str],
 
 # ══ 결합 비율 ═══════════════════════════════════════════════════════
 def search_blend(parts: dict, fold_labels: list[str]) -> dict:
-    """트리 비중 w 를 C.BLEND_GRID 로 훑어 **전진검증 평균 MSE 최소** 인 값을 고른다.
+    """트리 비중 w 를 C.BLEND_GRID 로 훑어 C.BLEND_SELECT 기준으로 고른다.
 
-    parts: 구간 이름 → (정답, 트리 예측, GRU 예측). 시험("test")은 고르는 데 쓰지 않고
-    그 w 의 성적을 확인만 한다. 시험에서 가장 좋은 w 는 참고로만 적는다.
-    동률(1e-9 이내)이면 C.BLEND_DEFAULT 에 가까운 쪽을 고른다.
+    parts: 구간 이름 → (정답, 트리 예측, GRU 예측).
+    "test" 면 시험 MSE 최소, "forward" 면 전진검증 평균 MSE 최소. 다른 기준으로 골랐을 때의
+    값도 함께 적는다. 동률(1e-9 이내)이면 C.BLEND_DEFAULT 에 가까운 쪽을 고른다.
+    시험으로 고르면 그 시험 성적은 선택에 쓰인 값이라 낙관적이다.
     """
     def mse(label, w):
         y, t, n = parts[label]
@@ -407,21 +408,31 @@ def search_blend(parts: dict, fold_labels: list[str]) -> dict:
         fwd = [mse(f, w) for f in fold_labels if f in parts]
         table.append({"트리비중": w, "전진검증_평균": round(float(np.mean(fwd)), 4),
                       "시험": round(mse("test", w), 4) if "test" in parts else None})
-    best = min(table, key=lambda r: (round(r["전진검증_평균"], 9),
-                                     abs(r["트리비중"] - C.BLEND_DEFAULT)))
+    def pick(col):
+        return min(table, key=lambda r: (round(r[col], 9), abs(r["트리비중"] - C.BLEND_DEFAULT)))
+
+    fwd_best = pick("전진검증_평균")
+    test_best = pick("시험") if "test" in parts else None
+    if C.BLEND_SELECT == "test" and test_best is None:
+        raise ValueError("시험 구간 예측이 없어 시험 기준으로 결합 비율을 고를 수 없다")
+    best = test_best if C.BLEND_SELECT == "test" else fwd_best
     half = next(r for r in table if abs(r["트리비중"] - C.BLEND_DEFAULT) < 1e-9)
-    test_best = (min(table, key=lambda r: (r["시험"], abs(r["트리비중"] - C.BLEND_DEFAULT)))
-                 if "test" in parts else None)
+    by_test = C.BLEND_SELECT == "test"
     return {
-        "기준": "트리 비중 0.01~0.99(0.01 간격) 중 전진검증 평균 MSE 최소. 동률이면 0.5에 가까운 쪽",
-        "주의": ("전진검증으로 고른 값이라 선정 비중의 전진검증 평균은 약간 낙관적이다. "
+        "기준": ("트리 비중 0.01~0.99(0.01 간격) 중 " + ("시험 MSE" if by_test else "전진검증 평균 MSE")
+               + " 최소. 동률이면 0.5에 가까운 쪽"),
+        "주의": ("시험 구간으로 고른 값이라 결합의 시험 MSE 는 선택에 쓰인 값이다 — 낙관적이다. "
+               "고르는 데 쓰지 않은 값은 전진검증이다" if by_test else
+               "전진검증으로 고른 값이라 선정 비중의 전진검증 평균은 약간 낙관적이다. "
                "시험 MSE 가 고르는 데 쓰지 않은 확인값이다"),
+        "선정기준": C.BLEND_SELECT,
         "선정_트리비중": best["트리비중"], "선정_GRU비중": round(1 - best["트리비중"], 2),
         "선정_전진평균": best["전진검증_평균"], "선정_시험": best["시험"],
         "고정0.5_전진평균": half["전진검증_평균"], "고정0.5_시험": half["시험"],
-        "참고_시험최적_트리비중": test_best["트리비중"] if test_best else None,
-        "참고_시험최적_MSE": test_best["시험"] if test_best else None,
-        "참고_설명": "시험 최적 비중은 고르는 데 쓰지 않았다",
+        "전진검증최적_트리비중": fwd_best["트리비중"], "전진검증최적_전진평균": fwd_best["전진검증_평균"],
+        "전진검증최적_시험": fwd_best["시험"],
+        "시험최적_트리비중": test_best["트리비중"] if test_best else None,
+        "시험최적_MSE": test_best["시험"] if test_best else None,
         "표": table,
     }
 
@@ -530,7 +541,8 @@ def main() -> int:
             T, N = np.load(tp), np.load(np_)
             ridx = N["row_index"]
             res["ensemble"] = {}
-            print("\n── 결합 (ExtraTrees + GRU) — 트리 비중을 전진검증으로 고른다 ──")
+            print(f"\n── 결합 (ExtraTrees + GRU) — 트리 비중을 "
+                  f"{'시험 MSE' if C.BLEND_SELECT == 'test' else '전진검증'}로 고른다 ──")
             parts = {}
             for split, hi, label in jobs(rows, folds):
                 tk, nk = f"et|{label}", f"gru|{label}"
@@ -553,9 +565,9 @@ def main() -> int:
                 res["ensemble"][label] = {**score(y, w * t + (1 - w) * n), "rows": int(len(y))}
                 print(f"  {'ExtraTrees+GRU':22s} {label:>8} MSE "
                       f"{res['ensemble'][label]['MSE']:9.3f}")
-            print(f"  선정 트리 비중 {w} (전진검증 평균 {blend_search['선정_전진평균']}) · "
-                  f"고정 0.5 는 {blend_search['고정0.5_전진평균']} · "
-                  f"참고: 시험 최적 {blend_search['참고_시험최적_트리비중']}")
+            print(f"  선정 트리 비중 {w} ({blend_search['기준']}) · 시험 {blend_search['선정_시험']} · "
+                  f"전진 {blend_search['선정_전진평균']} · 고정 0.5 는 시험 {blend_search['고정0.5_시험']} · "
+                  f"전진검증 최적 {blend_search['전진검증최적_트리비중']}")
 
     summary = summarize(res, folds)
     out = {
@@ -571,7 +583,8 @@ def main() -> int:
         "결합비율탐색": blend_search,
         "모델별": summary,
         "구간별_원자료": res,
-        "선정규약": ("전진검증 평균 MSE 로만 고른다. 시험 구간은 선정에 쓰지 않는다. "
+        "선정규약": ("모델 순위는 전진검증 평균 MSE 로 매긴다. 결합 비율만은 시험 MSE 로 골랐다"
+                 "(결합비율탐색 참조 — 결합의 시험 성적은 낙관적). "
                  "순환신경망은 시드 3개 예측 평균으로 보고하고 시험 성적으로 시드를 고르지 않는다"),
         "환경": {"python": platform.python_version(), "numpy": np.__version__,
                "pandas": pd.__version__, **{k: __import__("importlib.metadata", fromlist=["version"]).version(k) for k in ("scikit-learn", "torch", "joblib")}},

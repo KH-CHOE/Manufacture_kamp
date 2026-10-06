@@ -52,7 +52,7 @@ export function BriefingPanel({day,cursor,threshold,ready}:{day:string;cursor:nu
 
  return <section className="panel briefing-panel" aria-label="전력 브리핑">
   <div className="panel-heading"><div><h2><Sparkles size={18}/> {brief?`${brief.label} 브리핑`:'전력 브리핑'}</h2>
-   <p>{brief?`재생 자료 기준 ${brief.confirmedAt}까지 확정값 · ${brief.source==='llm'?`AI 브리핑 (${brief.model})`:'숫자 요약 (API 키 없음)'}`:'재생 시점의 예측과 관리 권고를 15분마다 정리해요.'}</p></div>
+   <p>{brief?`재생 자료 기준 ${brief.confirmedAt}까지 확정값 · ${brief.source==='llm'?`AI 브리핑 (${brief.model})`:'숫자 요약 (API 키 없음)'}`:'다음 15분 예측과 15분 최대치 관리 권고를 15분마다 정리해요.'}</p></div>
    <div className="briefing-actions"><label className="auto-toggle"><input type="checkbox" checked={auto} onChange={toggleAuto}/>자동 갱신</label>
    <button className="secondary" onClick={()=>load(true)} disabled={loading||!day}><RefreshCw size={16} className={loading?'spin':''}/>브리핑 갱신</button></div></div>
   {error&&<div className="briefing-error" role="alert">{error}</div>}
@@ -62,7 +62,7 @@ export function BriefingPanel({day,cursor,threshold,ready}:{day:string;cursor:nu
    <small>키는 이 브라우저에만 저장되고 서버는 요청마다 받아 쓰고 보관하지 않아요.</small></div>
   <div className="chat-box">
    {chat.length>0&&<div className="chat-log">{chat.map((m,i)=><div key={i} className={`chat-msg ${m.role}`}>{m.role==='assistant'&&<Bot size={16}/>}<div><Rich text={m.content}/></div></div>)}{asking&&<div className="chat-msg assistant"><Bot size={16}/><div><p className="muted">답을 찾고 있어요…</p></div></div>}</div>}
-   <form className="chat-input" onSubmit={e=>{e.preventDefault();send();}}><input placeholder={key?'예: 지금 압축기 시동을 미루면 요금이 얼마나 달라져?':'질문하려면 API 키를 먼저 저장하세요'} value={question} onChange={e=>setQuestion(e.target.value)} disabled={!key||asking} aria-label="전력 관리 질문"/><button className="primary" disabled={!key||asking||!question.trim()} aria-label="질문 보내기"><Send size={16}/></button></form>
+   <form className="chat-input" onSubmit={e=>{e.preventDefault();send();}}><input placeholder={key?'예: 다음 15분 최대치를 낮추려면 지금 무엇을 미루면 좋을까?':'질문하려면 API 키를 먼저 저장하세요'} value={question} onChange={e=>setQuestion(e.target.value)} disabled={!key||asking} aria-label="전력 관리 질문"/><button className="primary" disabled={!key||asking||!question.trim()} aria-label="질문 보내기"><Send size={16}/></button></form>
   </div>
  </section>;
 }

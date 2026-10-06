@@ -25,14 +25,10 @@ import numpy as np
 import pandas as pd
 
 import config as C
-import optimization as O
 import serving as S
 
 DEFAULT_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
 MAX_TOOL_ROUNDS = 4
-BAND_KO = O.LABELS                      # off/mid/peak → 경부하/중간부하/최대부하
-SEASON_KO = {"summer": "여름(6~8월)", "spring_autumn": "봄·가을(3~5·9~10월)",
-             "winter": "겨울(11~2월)"}
 
 
 # ══ 하네스 — 시스템 지시문 ══════════════════════════════════════════
@@ -42,7 +38,7 @@ def _model_summary() -> str:
     ens, et, gru, base = m["ensemble"], m["et"], m["gru"], m["persistence"]
     w = s.get("선정_트리비중", res["설정"].get("blend_weight"))
     return (f"- 다음 15분 전력 예측 = ExtraTrees(과거 전력·달력 입력, 기상 미사용) × {w} + "
-            f"GRU(과거 96구간=하루 전력 + 달력) × {round(1 - w, 2)}. 비중은 전진검증으로 골랐다.\n"
+            f"GRU(과거 96구간=하루 전력 + 달력) × {round(1 - w, 2)}. 비중은 시험 구간 기준으로 골랐다.\n"
             f"- 시험 구간({res['자료']['시험행']:,}개 구간) MSE {ens['시험']['MSE']} · "
             f"평균 절대오차 {ens['시험']['MAE']} — 직전값 유지 {base['시험']['MSE']} 대비 "
             f"{round((1 - ens['시험']['MSE'] / base['시험']['MSE']) * 100, 1)}% 낮다. "
@@ -52,12 +48,8 @@ def _model_summary() -> str:
 
 
 def system_prompt() -> str:
-    t = O.TARIFF
-    rates = "; ".join(
-        f"{SEASON_KO[sn]} 경부하 {r['off']} · 중간부하 {r['mid']} · 최대부하 {r['peak']}원/kWh"
-        for sn, r in t["rates"].items())
-    return f"""너는 볼트·너트 제조공장의 전력 관리 보조원이다. 공장 관리자가 피크 전력과 전기요금을
-관리하도록 돕는다. 한국어로, 짧고 분명하게, 현장 담당자가 바로 움직일 수 있게 말한다.
+    return f"""너는 볼트·너트 제조공장의 전력 관리 보조원이다. 공장 관리자가 15분 단위 사용량의
+최대치(피크)를 낮게 유지하도록 돕는다. 한국어로, 짧고 분명하게, 현장 담당자가 바로 움직일 수 있게 말한다.
 
 ## 공장과 자료
 - 공정: 환봉·선재 입고 → 절단 → 성형(냉간·열간 단조) → 나사 가공(전조) → 필요 시 열처리·표면처리 → 검사 → 출하.
@@ -71,18 +63,15 @@ def system_prompt() -> str:
 ## 예측 모델
 {_model_summary()}
 
-## 한전 요금 (2021, {t['tariff']})
-- 기본요금 = 요금적용전력(kW) × {t['base_rate_per_kw']:,}원. 최대수요전력은 **15분 평균 전력**으로 계량한다.
-  요금적용전력은 검침 당월을 포함한 직전 12개월 중 12·1·2·7·8·9월과 당월의 최대수요전력 가운데
-  가장 큰 값이다. 그래서 **한 번 찍힌 15분 피크가 최대 1년 동안 기본요금을 올린다.**
-  (계약전력·검침일 자료가 없어 실제 청구액은 계산하지 않는다. 이 화면의 요금적용전력 {t['billing_peak_kw']} kW 는 가정값이다.)
-- 전력량요금 = 사용량(kWh) × 계절·시간대 단가. {rates}.
-  일요일·공휴일은 종일 경부하, 토요일의 최대부하 시간은 중간부하로 친다.
-- 피크(kW)와 사용량(kWh)은 단위가 다르다. "피크를 줄였으니 요금이 몇 % 줄었다"처럼 섞어 말하지 않는다.
+## 관리 목표 — 15분 단위 사용량의 최대치
+- **15분 동안의 평균 전력(15분 단위 사용량)의 최대치가 높게 찍히지 않도록 계속 유지하는 것**이 목표다.
+  한 번 높게 찍힌 15분 최대치는 되돌릴 수 없으므로, 다음 15분이 알림 기준을 넘을 것 같으면 미리 부하를 나눈다.
+- 요금 계산은 하지 않는다(요금 산정 방식은 계약 조건에 따라 복잡하다). 금액을 묻는 질문에는
+  계산하지 않는다고 말하고, 15분 최대치를 낮게 유지하는 방법에 집중해 답한다.
 
 ## 관리 원칙
 - 피크 저감 수단: 비필수 부하를 다음 15분 구간으로 미루기, 설비 시동을 15분씩 나눠 겹치지 않게 하기,
-  공기압축기·전기가열처럼 미룰 수 있는 부하의 시작 시각 조정, 최대부하 시간대 사용을 경부하로 옮기기.
+  공기압축기·전기가열처럼 미룰 수 있는 부하의 시작 시각 조정, 높은 부하가 겹치는 작업을 다른 시간대로 나누기.
 - **설비를 자동으로 끄라는 지시는 하지 않는다.** 판단은 담당자가 한다. 안전·품질에 영향이 가는 조치는 권하지 않는다.
 - 예측은 틀릴 수 있다. 최근 예측 오차를 함께 보고, 오차가 크거나 급변 중이면 여유를 두라고 말한다.
 - 예측이 낮아도 **실측이 높으면 실측을 우선**한다.
@@ -99,7 +88,7 @@ BRIEFING_FORMAT = """아래 자료로 **{label} 브리핑**을 써라. 형식은
 **지금** — 확정된 현재 전력과 오늘 흐름 한두 문장
 **15분 뒤** — 예측값, 알림 기준과의 차이, 위험 여부
 **권장 관리** — 지금 할 일 1~3개(구체적으로, 담당자가 바로 할 수 있게)
-**근거·한계** — 요금 시간대·최근 예측 오차 등 근거 한 문장, 불확실성 한 문장
+**근거·한계** — 오늘 최대치·최근 예측 오차 등 근거 한 문장, 불확실성 한 문장
 
 자료:
 {facts}"""
@@ -132,8 +121,6 @@ def facts(day: str, cursor: int, threshold: float | None = None) -> dict:
     err = (done["전력"] - done["prediction"]).to_numpy(float)
     recent = data.iloc[max(0, cursor - 7):cursor + 1]
 
-    season, band, rate = O.tariff_at(pred_start)
-    nxt = [O.tariff_at(pred_start + pd.Timedelta(hours=h)) for h in (1, 2, 3)]
     pred = float(row["prediction"])
     return {
         "브리핑시각": label.strftime("%H:%M"),
@@ -156,10 +143,7 @@ def facts(day: str, cursor: int, threshold: float | None = None) -> dict:
                         "평균절대오차_kW": round(float(np.mean(np.abs(err))), 2),
                         "최대과소예측_kW": round(float(max(0, np.max(err))), 1)}
                        if len(err) else "아직 확정된 예측 없음"),
-        "요금": {"계절": SEASON_KO[season], "예측구간_시간대": BAND_KO[band],
-               "예측구간_단가_원per_kWh": rate,
-               "예측구간_전력량요금_원": round(pred * 0.25 * rate),
-               "이후_3시간_시간대": [BAND_KO[b] for _, b, _ in nxt]},
+        "오늘_최대_대비_예측_kW": round(pred - float(hist["현재전력"].max()), 1),
         "환경_한시간전": {k: snap["context"].get(k) for k in ("생산량", "기온", "풍속", "습도")},
     }
 
@@ -177,8 +161,7 @@ def rule_briefing(f: dict) -> str:
             f"{f['알림기준_kW']} kW 까지 {gap:+} kW · {risk}.\n"
             f"**권장 관리** — " + ("미룰 수 있는 부하의 시작을 다음 구간으로 넘기고 설비 시동을 겹치지 않게 한다."
                                    if f["피크위험"] else "지금 운전을 유지한다.") + "\n"
-            f"**근거·한계** — 예측 구간은 {f['요금']['계절']} {f['요금']['예측구간_시간대']}"
-            f"({f['요금']['예측구간_단가_원per_kWh']}원/kWh). {err_s}. "
+            f"**근거·한계** — 예측이 오늘 최대보다 {f['오늘_최대_대비_예측_kW']:+} kW. {err_s}. "
             "API 키를 넣으면 상황 설명과 권고가 자세해진다.")
 
 
@@ -186,24 +169,12 @@ def rule_briefing(f: dict) -> str:
 TOOLS = [
     {"type": "function", "function": {
         "name": "get_briefing_facts",
-        "description": "재생 시점의 현재 전력·15분 뒤 예측·알림 기준·요금 시간대·오늘 예측 오차",
+        "description": "재생 시점의 현재 전력·15분 뒤 예측·알림 기준·오늘 최대·오늘 예측 오차",
         "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {
         "name": "get_today_profile",
-        "description": "오늘 0시부터 재생 시점까지 시간별 실측 평균·최대와 예측 오차, 시간대별 요금 구분",
+        "description": "오늘 0시부터 재생 시점까지 시간별 실측 평균·최대(15분 단위)와 예측 오차",
         "parameters": {"type": "object", "properties": {}, "required": []}}},
-    {"type": "function", "function": {
-        "name": "get_tariff_schedule",
-        "description": "오늘 날짜의 24시간 요금 시간대(경부하·중간부하·최대부하)와 단가",
-        "parameters": {"type": "object", "properties": {}, "required": []}}},
-    {"type": "function", "function": {
-        "name": "estimate_energy_cost",
-        "description": "전력(kW)을 정해진 분 동안 썼을 때의 전력량요금(원)을 그 시각 단가로 계산한다",
-        "parameters": {"type": "object", "properties": {
-            "kw": {"type": "number", "description": "평균 전력 kW"},
-            "minutes": {"type": "number", "description": "사용 시간(분)"},
-            "hour": {"type": "integer", "description": "오늘 몇 시(0~23)에 쓰는지"}},
-            "required": ["kw", "minutes", "hour"]}}},
     {"type": "function", "function": {
         "name": "get_model_info",
         "description": "예측 모델 구성·비교 후보 성적·결합 비율·한계",
@@ -223,21 +194,8 @@ def _today_profile(day: str, cursor: int) -> dict:
         out.append({"시": int(h), "실측평균_kW": round(float(g["현재전력"].mean()), 1),
                     "실측최대_kW": round(float(g["현재전력"].max()), 1),
                     "예측평균절대오차_kW": (round(float((ok["전력"] - ok["prediction"]).abs().mean()), 2)
-                                       if len(ok) else None),
-                    "요금시간대": BAND_KO[O.tariff_at(pd.Timestamp(g.iloc[0]["forecast_time"]))[1]]})
+                                       if len(ok) else None)})
     return {"날짜": day, "확정시각": confirmed.strftime("%H:%M"), "시간별": out}
-
-
-def _tariff_schedule(day: str) -> dict:
-    d0 = pd.Timestamp(day)
-    rows = []
-    for h in range(24):
-        sn, b, r = O.tariff_at(d0 + pd.Timedelta(hours=h))
-        rows.append({"시": h, "시간대": BAND_KO[b], "단가_원per_kWh": r})
-    sn = O.tariff_at(d0)[0]
-    return {"날짜": day, "계절": SEASON_KO[sn], "요일유형": O.day_type(d0),
-            "기본요금_원per_kW": O.TARIFF["base_rate_per_kw"],
-            "요금적용전력_가정_kW": O.TARIFF["billing_peak_kw"], "시간별": rows}
 
 
 def _model_info() -> dict:
@@ -250,6 +208,7 @@ def _model_info() -> dict:
     return {"후보": {names.get(k, k): {"전진검증_평균MSE": v["전진검증_평균"],
                                       "시험MSE": (v["시험"] or {}).get("MSE")} for k, v in m.items()},
             "결합_트리비중": s.get("선정_트리비중"), "결합비중_고르는_기준": s.get("기준"),
+            "결합비중_주의": s.get("주의"),
             "행기준": res["자료"], "한계": [
                 "자료가 2021년 1~9월뿐이라 겨울 피크를 보지 못했다",
                 "계측이 변압기 총부하라 설비별 원인을 알 수 없다",
@@ -262,14 +221,6 @@ def run_tool(name: str, args: dict, day: str, cursor: int, threshold: float | No
         return facts(day, cursor, threshold)
     if name == "get_today_profile":
         return _today_profile(day, cursor)
-    if name == "get_tariff_schedule":
-        return _tariff_schedule(day)
-    if name == "estimate_energy_cost":
-        h = int(args.get("hour", 0)) % 24
-        _, b, r = O.tariff_at(pd.Timestamp(day) + pd.Timedelta(hours=h))
-        kwh = float(args["kw"]) * float(args["minutes"]) / 60
-        return {"시간대": BAND_KO[b], "단가_원per_kWh": r, "사용량_kWh": round(kwh, 2),
-                "전력량요금_원": round(kwh * r), "주의": "기본요금·세금·부담금 제외"}
     if name == "get_model_info":
         return _model_info()
     return {"오류": f"모르는 도구: {name}"}
