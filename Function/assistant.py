@@ -226,6 +226,21 @@ def run_tool(name: str, args: dict, day: str, cursor: int, threshold: float | No
     return {"오류": f"모르는 도구: {name}"}
 
 
+# ══ 음성 — OpenAI TTS ═══════════════════════════════════════════════
+TTS_MODEL = os.environ.get("OPENAI_TTS_MODEL", "gpt-4o-mini-tts")
+TTS_VOICE = os.environ.get("OPENAI_TTS_VOICE", "marin")
+TTS_INSTRUCTIONS = ("한국어 공장 관제실 안내 방송처럼 말한다. 차분하고 또렷하게, 조금 빠른 보통 속도로. "
+                    "숫자와 시각은 천천히 정확하게 읽고, 위험을 알릴 때는 침착하지만 분명하게 강조한다.")
+
+
+def speech(text: str, api_key: str, voice: str | None = None) -> bytes:
+    """브리핑 문장을 mp3 로 만든다. 문장은 화면이 읽기 좋게 바꿔서 보낸다."""
+    out = _client(api_key).audio.speech.create(
+        model=TTS_MODEL, voice=voice or TTS_VOICE, input=text[:4000],
+        instructions=TTS_INSTRUCTIONS, response_format="mp3")
+    return out.read()
+
+
 # ══ 언어 모델 호출 ══════════════════════════════════════════════════
 def _client(api_key: str):
     from openai import OpenAI

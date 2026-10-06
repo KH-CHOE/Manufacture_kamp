@@ -43,7 +43,8 @@ export function BriefingPanel({day,cursor,threshold,ready}:{day:string;cursor:nu
  const [brief,setBrief]=useState<BriefingData|null>(null),[loading,setLoading]=useState(false),[error,setError]=useState('');
  const [chat,setChat]=useState<{role:'user'|'assistant';content:string}[]>([]),[question,setQuestion]=useState(''),[asking,setAsking]=useState(false);
  const inflight=useRef(false),wanted=useRef<string>(''),done=useRef<string>('');
- const [speaking,setSpeaking]=useState(false);
+ const [speaking,setSpeaking]=useState(false),[voiceNote,setVoiceNote]=useState('');
+ const audioRef=useRef<HTMLAudioElement|null>(null),audioCache=useRef(new Map<string,string>());
  const [voiceAuto,setVoiceAuto]=useState(()=>{try{return localStorage.getItem(VOICE_STORE)==='on';}catch{return false;}});
  const spoken=useRef('');
  const target=`${day}|${cursor}|${threshold??''}|${key?'k':''}`;
@@ -60,12 +61,29 @@ export function BriefingPanel({day,cursor,threshold,ready}:{day:string;cursor:nu
  const latest=useRef(load);latest.current=load;   // 다시 부를 때는 최신 칸의 load 를 쓴다
  useEffect(()=>{if(auto&&ready)load();},[target,auto,ready]);
  useEffect(()=>{setChat([]);},[day]);
+ const stopVoice=()=>{audioRef.current?.pause();audioRef.current=null;if(canSpeak)window.speechSynthesis.cancel();setSpeaking(false);};
+ // 키가 있으면 OpenAI 음성(서버 /api/speech), 없거나 실패하면 브라우저 음성. 같은 문장은 만든 음성을 다시 쓴다
+ const play=async(text:string)=>{
+  stopVoice();setSpeaking(true);setVoiceNote('');
+  const said=toSpeech(text);
+  if(key){try{
+   let url=audioCache.current.get(said);
+   if(!url){const r=await fetch('/api/speech',{method:'POST',headers:{'Content-Type':'application/json','X-OpenAI-Key':key},body:JSON.stringify({text:said})});
+    if(!r.ok){const d=await r.json().catch(()=>null);throw new Error(typeof d?.detail==='string'?d.detail:'AI 음성을 만들지 못했어요.');}
+    url=URL.createObjectURL(await r.blob());audioCache.current.set(said,url);}
+   const a=new Audio(url);audioRef.current=a;a.onended=()=>{if(audioRef.current===a)setSpeaking(false);};a.onerror=()=>setSpeaking(false);
+   await a.play();return;
+  }catch(e){setVoiceNote(`${(e as Error).message} 브라우저 음성으로 읽어요.`);}}
+  if(canSpeak)speak(text,()=>setSpeaking(false));else setSpeaking(false);
+ };
+ const playRef=useRef(play);playRef.current=play;
  // 피크 위험 브리핑만 자동으로 읽는다(켜 둔 경우). 같은 브리핑은 한 번만
- useEffect(()=>{if(!canSpeak||!voiceAuto||!brief)return;const id=`${brief.label}|${brief.text}`;
-  if(brief.facts?.['피크위험']===true&&spoken.current!==id){spoken.current=id;setSpeaking(true);speak(brief.text,()=>setSpeaking(false));}},[brief,voiceAuto]);
- useEffect(()=>()=>{if(canSpeak)window.speechSynthesis.cancel();},[]);
- const readNow=()=>{if(!brief)return;if(speaking){window.speechSynthesis.cancel();setSpeaking(false);return;}setSpeaking(true);speak(brief.text,()=>setSpeaking(false));};
- const toggleVoice=()=>{const n=!voiceAuto;setVoiceAuto(n);try{localStorage.setItem(VOICE_STORE,n?'on':'off');}catch{}if(!n&&canSpeak){window.speechSynthesis.cancel();setSpeaking(false);}};
+ useEffect(()=>{if(!voiceAuto||!brief)return;const id=`${brief.label}|${brief.text}`;
+  if(brief.facts?.['피크위험']===true&&spoken.current!==id){spoken.current=id;playRef.current(brief.text);}},[brief,voiceAuto]);
+ useEffect(()=>()=>{audioRef.current?.pause();if(canSpeak)window.speechSynthesis.cancel();audioCache.current.forEach(u=>URL.revokeObjectURL(u));},[]);
+ const readNow=()=>{if(!brief)return;if(speaking){stopVoice();return;}play(brief.text);};
+ const toggleVoice=()=>{const n=!voiceAuto;setVoiceAuto(n);try{localStorage.setItem(VOICE_STORE,n?'on':'off');}catch{}if(!n)stopVoice();};
+ const voiceReady=canSpeak||!!key;
 
  const saveKey=()=>{const k=draft.trim();if(!k)return;try{localStorage.setItem(KEY_STORE,k);}catch{}setKey(k);setDraft('');done.current='';};
  const clearKey=()=>{try{localStorage.removeItem(KEY_STORE);}catch{}setKey('');done.current='';};
@@ -82,10 +100,11 @@ export function BriefingPanel({day,cursor,threshold,ready}:{day:string;cursor:nu
   <div className="panel-heading"><div><h2><Sparkles size={18}/> {brief?`${brief.label} 브리핑`:'전력 브리핑'}</h2>
    <p>{brief?`재생 자료 기준 ${brief.confirmedAt}까지 확정값 · ${brief.source==='llm'?`AI 브리핑 (${brief.model})`:'숫자 요약 (API 키 없음)'}`:'다음 15분 예측과 15분 최대치 관리 권고를 15분마다 정리해요.'}</p></div>
    <div className="briefing-actions"><label className="auto-toggle"><input type="checkbox" checked={auto} onChange={toggleAuto}/>자동 갱신</label>
-   {canSpeak&&<label className="auto-toggle" title="새 브리핑이 피크 위험일 때만 자동으로 읽어요"><input type="checkbox" checked={voiceAuto} onChange={toggleVoice}/>위험 시 음성</label>}
-   {canSpeak&&<button className="secondary" onClick={readNow} disabled={!brief} aria-label={speaking?'읽기 멈추기':'브리핑 읽어 주기'}>{speaking?<VolumeX size={16}/>:<Volume2 size={16}/>}{speaking?'멈춤':'읽어 주기'}</button>}
+   {voiceReady&&<label className="auto-toggle" title="새 브리핑이 피크 위험일 때만 자동으로 읽어요"><input type="checkbox" checked={voiceAuto} onChange={toggleVoice}/>위험 시 음성</label>}
+   {voiceReady&&<button className="secondary" onClick={readNow} disabled={!brief} title={key?'OpenAI 음성으로 읽어요':'브라우저 음성으로 읽어요 (API 키를 넣으면 OpenAI 음성)'} aria-label={speaking?'읽기 멈추기':'브리핑 읽어 주기'}>{speaking?<VolumeX size={16}/>:<Volume2 size={16}/>}{speaking?'멈춤':'읽어 주기'}</button>}
    <button className="secondary" onClick={()=>load(true)} disabled={loading||!day}><RefreshCw size={16} className={loading?'spin':''}/>브리핑 갱신</button></div></div>
   {error&&<div className="briefing-error" role="alert">{error}</div>}
+  {voiceNote&&<div className="briefing-error" role="status">{voiceNote}</div>}
   <div className="briefing-body" aria-live="polite">{brief?<Rich text={brief.text}/>:<p className="muted">{loading?'브리핑을 준비하고 있어요…':'브리핑 갱신을 눌러 시작하세요.'}</p>}</div>
   <div className="key-row">{key?<><KeyRound size={15}/><span>API 키 저장됨 · {key.slice(0,3)}…{key.slice(-4)}</span><button className="text-button" onClick={clearKey}>지우기</button></>:
    <form onSubmit={e=>{e.preventDefault();saveKey();}}><KeyRound size={15}/><input type={show?'text':'password'} placeholder="OpenAI API 키 (sk-…)" value={draft} onChange={e=>setDraft(e.target.value)} autoComplete="off" aria-label="OpenAI API 키"/><button type="button" className="icon-button" onClick={()=>setShow(!show)} aria-label={show?'키 가리기':'키 보기'}>{show?<EyeOff size={16}/>:<Eye size={16}/>}</button><button className="secondary">저장</button></form>}

@@ -14,7 +14,7 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException, Query, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -180,6 +180,23 @@ def chat(spec: ChatSpec, x_openai_key: str | None = Header(None)):
         raise HTTPException(404, str(e)) from e
     except Exception as e:
         raise _llm_error(e) from None
+
+
+class SpeechSpec(BaseModel):
+    text: str = Field(min_length=1, max_length=4000)
+
+
+@app.post("/api/speech")
+def speech(spec: SpeechSpec, x_openai_key: str | None = Header(None)):
+    """브리핑을 OpenAI 음성으로 읽는다. 키가 없으면 화면이 브라우저 음성으로 대신 읽는다."""
+    import assistant as A
+    if not x_openai_key:
+        raise HTTPException(401, "음성 합성에는 OpenAI API 키가 필요합니다.")
+    try:
+        audio = A.speech(spec.text, x_openai_key)
+    except Exception as e:
+        raise _llm_error(e) from None
+    return Response(content=audio, media_type="audio/mpeg")
 
 
 _dist = ROOT / "dist"
