@@ -1,31 +1,17 @@
-# 시스템 / 파이썬
+# 환경 및 시스템 생성 파일
+.venv/
+.env
+.env.*
+!.env.example
 .DS_Store
 __pycache__/
 *.py[cod]
 .ipynb_checkpoints/
 
-# 환경
-.venv/
-.env
-
-# 로컬 예측 산출물 (스크립트로 재생성)
-**/prediction_replay.csv
-
-# 중간 산출물 — train_gru_part.py 가 만들고 train_ensemble.py 가 소비한다
-**/_gru_predictions.npz
-
-# ── 학습 산출물 ──
-# model_et.joblib(43MB)은 **담는다** — 화면이 켜질 때 바로 읽는다.
-# model_rf.joblib(34MB)은 비교용일 뿐이고 2분이면 다시 학습되므로 담지 않는다.
-#   python Function/modeling.py --models rf
-Model/model_rf.joblib
-# model_et_wx.joblib(기상 포함 비교 후보)는 **담는다** — 팀 결정으로 세 모델을 함께 올린다
-
-# Function/ 이 만드는 중간·시험 산출물
+# 학습 중간 결과와 재사용 캐시
 Function/_pred_*.npz
 Function/_res_*.json
-Function/test_year_*.csv
-Function/processed_2022*
-
-# 중단 후 재개용 시드별 학습 결과
 Function/_net_cache/
+
+# 로컬 예측 내보내기
+**/prediction_replay.csv

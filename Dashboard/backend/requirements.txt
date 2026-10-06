@@ -1,6 +1,0 @@
-fastapi==0.142.2
-uvicorn[standard]==0.54.0
-# 브리핑·질의(ChatGPT). 키는 화면에서 받는다
-openai==3.24.0
-# 전처리·학습 의존성은 저장소 루트 requirements.txt에 통합한다.
-# 전체 실행 환경은 저장소 루트 requirements.txt로 설치한다.

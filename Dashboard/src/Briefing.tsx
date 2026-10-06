@@ -8,7 +8,7 @@ const readKey=()=>{try{return localStorage.getItem(KEY_STORE)||'';}catch{return 
 const VOICE_STORE='kamp-briefing-voice';
 const canSpeak=typeof window!=='undefined'&&'speechSynthesis' in window;
 
-// 브라우저 내장 음성(Web Speech API)으로 읽을 문장으로 바꾼다 — 서버·키·요금이 필요 없다
+// 브라우저 음성용 텍스트로 변환한다.
 const hm=(h:string,m:string)=>`${Number(h)}시${m==='00'?'':` ${Number(m)}분`}`;
 export function toSpeech(text:string){
  return text.replace(/\*\*/g,'')
@@ -25,7 +25,7 @@ function speak(text:string,onEnd:()=>void){
  u.onend=onEnd;u.onerror=onEnd;synth.speak(u);
 }
 
-// 서버가 쓰는 표기 그대로 — **굵게** 와 줄바꿈만 처리한다
+// 문단과 굵은 글씨를 렌더링한다.
 function Rich({text}:{text:string}){
  return <>{text.split('\n').filter(l=>l.trim()).map((line,i)=><p key={i}>{line.split(/(\*\*[^*]+\*\*)/g).map((part,j)=>part.startsWith('**')&&part.endsWith('**')?<strong key={j}>{part.slice(2,-2)}</strong>:<span key={j}>{part}</span>)}</p>)}</>;
 }
@@ -36,7 +36,7 @@ async function post<T>(path:string,body:unknown,key:string):Promise<T>{
  return r.json();
 }
 
-/** 재생 시점의 전력 브리핑과 질의. 키는 이 브라우저에만 저장하고 요청 헤더로만 보낸다. */
+/** 재생 시점의 AI 요약과 질의응답. 키는 요청 헤더로 전달한다. */
 export function BriefingPanel({day,cursor,threshold,ready}:{day:string;cursor:number;threshold:number|null;ready:boolean}){
  const [key,setKey]=useState(readKey),[draft,setDraft]=useState(''),[show,setShow]=useState(false);
  const [auto,setAuto]=useState(()=>{try{return localStorage.getItem(AUTO_STORE)!=='off';}catch{return true;}});

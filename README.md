@@ -24,31 +24,23 @@ Git/ 또는 저장소 루트/
 │       ├── processed.csv           현재 모델 입력 데이터
 │       └── processed_manifest.json 전처리 규칙·처리 결과·파일 지문
 ├── Model/
-│   ├── model_et.joblib             ExtraTrees 모델
-│   ├── model_et_wx.joblib          기상 포함 ExtraTrees 비교 모델
-│   ├── model_hgb.joblib            HistGradientBoosting 비교 모델
-│   ├── model_gru.pt                GRU 모델 및 표준화 정보
-│   ├── model_lstm.pt               LSTM 비교 모델
-│   ├── results.json               모델별 성능 및 결합 비율
-│   ├── manifest.json              모델·데이터·환경의 일치 검사 정보
-│   ├── duplicate_evaluation.json   반복 날짜 제외 보조 평가
-│   └── weather_blend_comparison.json 기상 포함 여부 비교
+│   ├── model_et.joblib             최종 ExtraTrees 모델 (기상 미사용)
+│   ├── model_gru.pt                최종 GRU 모델 및 표준화 정보
+│   ├── results.json               최종·구성 모델 성능 및 결합 비율
+│   └── manifest.json              모델·데이터·환경의 일치 검사 정보
 ├── Function/
-│   ├── config.py                  경로·변수·학습 설정
-│   ├── preprocessing.py           원본 전처리 및 입력 변수 생성
-│   ├── modeling.py                모델 학습·평가·저장
-│   ├── artifacts.py               파일 지문과 저장 모델 일치 검사
-│   ├── evaluate_duplicates.py     학습에 포함된 보조 평가
-│   ├── compare_weather_blend.py   기상 포함·미포함 결합 비교
-│   ├── serving.py                 모델 로드·예측·조회
-│   ├── net_infer.py               신경망 추론 전용 프로세스
-│   ├── optimization.py            인원·비용 계산
-│   ├── assistant.py               대화체 요약·OpenAI 연결
-│   ├── calendar_2021.json         공휴일·분할 설정
-│   └── tariff.json                전력 요금·부하 시간대
+│   ├── settings.py                 경로·입력·학습 설정
+│   ├── data_preprocessing.py       원본 전처리 및 입력 변수 생성
+│   ├── model_training.py           ExtraTrees·GRU 학습·평가·결합
+│   ├── model_validation.py         저장 모델 일치 검사
+│   ├── power_prediction.py         모델 로드·전력 예측·조회
+│   ├── gru_prediction.py           GRU 추론 전용 프로세스
+│   ├── staffing_cost.py            인원·비용 계산
+│   ├── ai_chat.py                  대화체 요약·OpenAI 연결
+│   ├── holiday_calendar.json         2021~2026년 전국 공휴일
+│   └── electricity_tariff.json     전력 요금·부하 시간대
 └── Dashboard/
     ├── backend/app.py             FastAPI API·정적 화면 제공
-    ├── backend/requirements.txt   서버 직접 의존성
     ├── src/                       React·TypeScript 화면
     ├── public/fonts/              글꼴 및 LICENSE.txt
     ├── index.html                 화면 진입점
@@ -58,16 +50,16 @@ Git/ 또는 저장소 루트/
     └── package-lock.json          JavaScript 의존성 버전
 ```
 
-과거 작업 이력과 검증 전용 스크립트는 제출 구성에서 제외했습니다. 모델 파일의 지문·환경·입력 일치를 검사하는 `artifacts.py`는 실제 실행에 필요하므로 포함합니다.
+과거 작업 이력과 검증 전용 스크립트는 제출 구성에서 제외했습니다. 모델 파일의 지문·환경·입력 일치를 검사하는 `model_validation.py`는 실제 실행에 필요하므로 포함합니다.
 
 ## 3. 데이터와 실행 흐름
 
 ```text
-Dataset/raw → Function/preprocessing.py → Dataset/preprocessed
+Dataset/raw → Function/data_preprocessing.py → Dataset/preprocessed
                                                ↓
-                                Function/modeling.py → Model
+                                Function/model_training.py → Model
                                                ↓
-                             Function/serving.py (모델 추론)
+                             Function/power_prediction.py (모델 추론)
                                                ↓
                             Dashboard/backend/app.py (API)
                                                ↓
@@ -115,9 +107,11 @@ npm run build
 가상환경을 활성화한 후 저장소 루트에서 실행합니다.
 
 ```bash
-python Function/preprocessing.py
-python Function/modeling.py --models baseline,rf,et,hgb,et_wx,gru,lstm,ensemble
+python Function/data_preprocessing.py
+python Function/model_training.py --models et,gru,ensemble
 ```
+
+위 명령은 최종 구성인 ExtraTrees·GRU·앙상블만 학습합니다. 비교 실험 스크립트와 RF·HGB·LSTM·기준선 비교 학습 코드는 제출 구성에서 제외했습니다.
 
 재학습은 시간이 오래 걸리며 `Model/`의 모델·평가 결과·파일 지문을 갱신합니다. 실행용 모델을 임의로 섞어 교체하지 마세요. 전체 학습은 구간·시드별 완료 결과를 재사용합니다.
 
@@ -130,33 +124,33 @@ python Function/modeling.py --models baseline,rf,et,hgb,et_wx,gru,lstm,ensemble
 - 생산량·기상 같은 시간당 정보는 한 시간 늦춘 변수로 생성하며 동일 시간의 미확정 원값을 모델 입력에 넣지 않습니다.
 - 처리 결과와 이유는 `Dataset/preprocessed/processed_manifest.json`에 남깁니다.
 
-다른 자료의 경로와 달력은 다음처럼 지정할 수 있습니다. 해당 자료의 형식·열 이름은 `Function/config.py`의 스키마와 맞아야 합니다.
+2021~2026년 한국 데이터는 `Function/holiday_calendar.json`에서 해당 연도의 공휴일·대체공휴일·전국 선거일·임시공휴일을 자동 적용합니다. 여러 연도가 섞인 자료도 지원합니다. 등록되지 않은 연도는 오류로 중단하며, `--no-calendar`를 명시한 경우에만 주말 기준으로 처리합니다. JSON에는 공식 출처와 확인 날짜를 함께 기록했습니다. 회사별 휴무일은 별도이며 2021~2025년 근로자의 날은 이 전국 공휴일 목록에 포함하지 않습니다.
+
+2021년은 저장 모델 재현을 위해 `settings.py`의 분할 날짜 20210725를 사용합니다. 다른 연도는 기본적으로 뒤쪽 30%를 시험으로 나누며, `--split-date YYYYMMDD`로 변경할 수 있습니다. 공휴일 파일에는 분할 날짜를 저장하지 않습니다.
+
+다른 자료의 경로와 달력은 다음처럼 지정할 수 있습니다. 해당 자료의 형식·열 이름은 `Function/settings.py`의 스키마와 맞아야 합니다.
 
 ```bash
-python Function/preprocessing.py --raw 새자료.csv --out 정리자료.csv --calendar Function/calendar_2022.json
+python Function/data_preprocessing.py --raw 새자료.csv --out 정리자료.csv --calendar Function/holiday_calendar.json
 ```
 
 ## 6. 모델 구성과 성능
 
-현재 화면은 **ExtraTrees 0.47 + GRU 0.53**의 결합 예측을 사용합니다. ExtraTrees는 과거 전력·달력 변수를, GRU는 과거 96개 구간(하루)의 전력과 달력 변수를 사용합니다. 기상 포함 ExtraTrees는 비교 후보로 보관하며 현재 결합에는 사용하지 않습니다.
+현재 화면은 **ExtraTrees 0.47 + GRU 0.53**의 결합 예측을 사용합니다. ExtraTrees는 과거 전력·달력 변수를, GRU는 과거 96개 구간(하루)의 전력과 달력 변수를 사용합니다. 최종 모델 입력에 기상 변수는 포함하지 않습니다.
+
+기상 열은 전처리·화면의 맥락 정보와 기존 모델의 공통 평가 행을 재현하는 유효성 검사에 사용합니다. 현재 학습·추론 경로에는 기온·풍속·습도·강수량의 지연 열이 필요합니다. 자원 최적화에는 원본의 `생산량`·`공장인원` 열도 필요합니다.
 
 저장된 결과 기준 공통 평가 대상은 24,192행, 시험은 4,991행, 전진검증은 4구간입니다. 아래 지표는 MSE이며 낮을수록 좋습니다.
 
-| 모델 | 전진검증 평균 | 구간 간 표준편차 | 반복 날짜 제외 검증 | 시험 |
-|---|---:|---:|---:|---:|
-| ExtraTrees + GRU (트리 0.47) | 37.28 | 18.25 | 38.80 | 46.56 |
-| ExtraTrees + 기상 (비교 후보) | 38.02 | 21.52 | 42.58 | 54.17 |
-| ExtraTrees | 38.73 | 21.67 | 43.35 | 54.99 |
-| RandomForest | 44.78 | 26.37 | 50.82 | 67.44 |
-| HistGradientBoosting | 46.39 | 22.30 | 49.09 | 59.39 |
-| GRU | 48.22 | 17.92 | 45.33 | 53.00 |
-| LSTM | 51.74 | 17.96 | 47.40 | 59.64 |
-| 직전값 유지 | 199.67 | 12.81 | 151.40 | 180.33 |
-| 시각×요일 중앙값 | 1313.08 | 994.86 | 1337.32 | 1540.06 |
+| 모델 | 전진검증 평균 | 구간 간 표준편차 | 시험 |
+|---|---:|---:|---:|
+| ExtraTrees + GRU (트리 0.47) | 37.2850 | 18.2540 | 46.5607 |
+| ExtraTrees | 38.73 | 21.67 | 54.99 |
+| GRU | 48.22 | 17.92 | 53.00 |
 
-상세 결과는 `Model/results.json`, 기상 변수 비교는 `Model/weather_blend_comparison.json`에 있습니다. 모델마다 입력과 학습 기간이 다르므로 성능 차이를 알고리즘 자체의 우열로 단정하지 않습니다.
+상세 결과와 결합 비율 탐색은 `Model/results.json`에 있습니다. 현재 제출에는 최종 앙상블과 두 구성 모델의 결과만 포함합니다. 모델마다 입력과 학습 기간이 다르므로 성능 차이를 알고리즘 자체의 우열로 단정하지 않습니다.
 
-**평가 해석:** 결합 비율은 시험 구간 MSE를 최소화하도록 선택했습니다. 따라서 결합 시험 성능은 비율 선택에 사용된 값이며 독립적인 최종 평가가 아닙니다. 반복 날짜 제외 평가는 중복 전력곡선의 영향을 확인하기 위한 보조 결과이고 일부 구간의 날짜 수가 적습니다. 새 외부 데이터에 대한 성능 보장은 아닙니다.
+**평가 해석:** 결합 비율은 시험 구간 MSE를 최소화하도록 선택했습니다. 따라서 결합 시험 성능은 비율 선택에 사용된 값이며 독립적인 최종 평가가 아닙니다. 새 외부 데이터에 대한 성능 보장은 아닙니다.
 
 ## 7. 자원 최적화의 계산 방식
 
@@ -170,6 +164,8 @@ python Function/preprocessing.py --raw 새자료.csv --out 정리자료.csv --ca
 - **시간당 영업 이익:** 생산 이익 − 인건비 − 전력량 요금 − 기본요금 배분.
 
 원자료의 `공장인원`은 생산량과 전력에서 계산한 파생값이며 실제 배치 인원을 뜻하지 않습니다. 화면의 추천은 과거 사례 기반 참고값입니다. 전력비는 15분 예측이 한 시간 유지된다는 가정이며 2021년 요금표를 사용합니다. 실제 청구서 전체 항목과 세금을 재현하지 않습니다.
+
+공휴일 판정은 전처리와 동일한 다년도 달력을 사용하지만 전력 요금 단가는 여전히 2021년 기준입니다. 다른 연도의 실제 비용 계산에는 요금표 갱신이 필요합니다.
 
 개당 이익·시급·피크 전력의 ‘기본값’ 체크와 요금표 적용값은 브라우저에 저장할 수 있습니다.
 
@@ -188,8 +184,24 @@ API 키가 없으면 실제 조회 수치를 정해진 대화체 문장에 넣�
 | `POST /api/chat` | 자료 조회를 통한 질문 답변 |
 | `POST /api/speech` | OpenAI 음성 생성 |
 
-모델·데이터 경로는 `MODEL_PATH`·`DATA_PATH` 환경변수로 지정할 수 있습니다. 현재 저장 모델은 파일 지문과 데이터·설정 일치 검사를 거치므로 임의 파일 교체 시 관련 저장 정보도 맞춰야 합니다.
+모델·전처리 데이터 경로는 `MODEL_PATH`·`DATA_PATH` 환경변수로 지정할 수 있습니다. 로딩 시 모델 파일 지문·입력 설정·scikit-learn/PyTorch 버전을 검사하고, 트리와 GRU의 추론 행이 일치하는지 확인합니다. 데이터 파일 지문은 학습 기록에 보관하며 로딩 시 자동 비교하지 않습니다. 자원 최적화의 원본 조회 경로는 `settings.py`의 `RAW_DEFAULT`를 사용하므로 새 자료로 실행할 때 원본과 전처리 자료를 함께 맞춰야 합니다.
 
-## 9. 글꼴 및 라이선스
+## 9. 최종 실행 검증
+
+2026-10-06~07에 위 macOS 환경에서 다음 항목을 확인했습니다.
+
+- 원본의 기본 전처리 결과: **24,477행 × 46열**, 제출된 `processed.csv`와 SHA-256 일치.
+- 기본 설정 그대로 ExtraTrees·GRU 전체 재학습 완료: 전진검증 4구간·최종 시험 구간, GRU 각 3시드(총 15조합). 시험 MSE **46.5607**, 트리 비중 **0.47** 재현.
+- 새 학습 산출물의 모델 로드·결합 추론·비용 계산·챗 요약 정상 실행. 추론 MSE **46.560719**로 학습 기록과 일치.
+- 제출 모델·평가 결과의 파일 지문 일치 확인. 재학습 검증은 별도 폴더에서 진행하고 기존 제출 모델 파일을 유지.
+- `requirements.txt` 설치와 `python -m pip check` 통과.
+- `npm run build`의 TypeScript 검사·프론트엔드 빌드 통과.
+- API의 전력 조회·생산 실적 재생·비용 계산·대화체 요약 정상 응답. 위험 상태, 잘못된 입력, 없는 날짜 및 API 키 누락 응답 확인.
+- 브라우저에서 날짜 전환·자원 최적화·피크 입력 적용·알림 창·요약 갱신 확인, 콘솔 오류 없음.
+- 실제 OpenAI SDK를 모의 HTTP 전송에 연결해 대화체 요청·질의응답 도구 호출·응답 해석·음성 바이트 처리 확인.
+
+실제 OpenAI API 키를 사용한 외부 질의응답·음성 생성은 검증하지 않았습니다. 해당 기능의 최종 응답은 API 연결·키 권한·계정 상태에 따라 달라집니다. 검증용 코드와 학습 중간 산출물은 제출 저장소 밖에서 실행했습니다.
+
+## 10. 글꼴 및 라이선스
 
 화면은 우아한형제들의 **배민 한나체 Air(BM HANNA Air)**를 사용합니다. 글꼴 라이선스 전문은 `Dashboard/public/fonts/LICENSE.txt`에 포함되어 있습니다. 공식 안내: https://www.woowahan.com/fonts

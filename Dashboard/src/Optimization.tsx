@@ -9,7 +9,7 @@ type SaveFlags={unitPrice:boolean;dayWage:boolean;billingPeak:boolean};
 const num=(v:number,d=0)=>v.toLocaleString('ko-KR',{maximumFractionDigits:d});
 const won=(v:number|null)=>v===null?'산정 불가':`${num(v)}원`;
 const clock=(v:string)=>v.slice(11,16);
-// v2 replaces the former selling-price and fixed-rate setting with production profit and a tariff table.
+// 생산 이익과 요금표의 기본 입력값.
 const storageKey='kamp-optimization-defaults-v2';
 const defaults:Settings={unitPrice:150,dayWage:8720,rates:defaultRates,baseRate:7220,billingPeak:200};
 function stored(){try{return JSON.parse(localStorage.getItem(storageKey)||'{}');}catch{return {};}}

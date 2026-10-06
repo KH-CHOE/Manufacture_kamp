@@ -1,15 +1,9 @@
-# 다시 만들 수 있는 것 — 스크립트가 생성한다
+# 학습 중간 결과 및 재사용 캐시
 _pred_*.npz
 _res_*.json
-test_year_*.csv
-processed_2022*.csv
-processed_2022*_manifest.json
-results_trees.json
 
-# 시스템 / 파이썬
+# Python 및 시스템 생성 파일
 .DS_Store
 __pycache__/
 *.py[cod]
 .venv/
-
-# 트리 모형은 Model/ 에 쓰인다 — 저장소 뿌리의 .gitignore 가 가린다

@@ -77,21 +77,17 @@
     "blend_select": "test"
   },
   "source_sha256": {
-    "config.py": "ec8c5cc06107a1ddde30b062078780abdfd91f8ec9424878cad07a581c434bc5",
-    "preprocessing.py": "dc9f57c1f7ec3d63bf1afd6c3c6a22395f402aa071c31bb48b171c968a202eed",
-    "modeling.py": "937892622372ba81d21d5f91d38aaaf8307c4831785d87b2438da1716c93a772",
-    "net_infer.py": "d12337ac9f6a0faa1f6bb959169a6a0f6a95bc8f0388e9caded0041acd4b5e4a"
+    "settings.py": "ec8c5cc06107a1ddde30b062078780abdfd91f8ec9424878cad07a581c434bc5",
+    "data_preprocessing.py": "dc9f57c1f7ec3d63bf1afd6c3c6a22395f402aa071c31bb48b171c968a202eed",
+    "model_training.py": "937892622372ba81d21d5f91d38aaaf8307c4831785d87b2438da1716c93a772",
+    "gru_prediction.py": "d12337ac9f6a0faa1f6bb959169a6a0f6a95bc8f0388e9caded0041acd4b5e4a"
   },
   "data_sha256": "29716dbe856ca8c6a88204c033c8aab4ff91cac7b481fd71ea60222417adc575",
   "test_rows_sha256": "18a062fcf53b0d8b1e2f5fcf46d3e7efa5b5ff4623a31198efcbf4c7d9c92ca1",
   "files": {
-    "model_rf.joblib": "02fc174841dde6251a6f30726e2979ed430076de1bf6aa352a9450f4c836b200",
     "model_et.joblib": "6bea14efdda11ecdfcea9aa2ea89adc9563d30a33cf826599404ecf71c03069f",
-    "model_hgb.joblib": "e6c0d8b157ffffd35de00b73b46d917a98fe213d3dc108f5083bdf4c2dd04b8f",
-    "model_et_wx.joblib": "bc8e1f98470b00df62d7482af05073fe7748adda95a012946ebfb7848cf6b514",
     "model_gru.pt": "94d9cd5341087328c4d07e06ca74120330e69cbf3f4b95261b5840259fc862c2",
-    "model_lstm.pt": "b5c4120536f001430ab560aa516fce868be01610e4a9c9925681855d3f4d0a72",
-    "results.json": "251eff4d6d78bfa204a6a4a4d1b9733d9d69079afe50bb11dbe8a4e887435695"
+    "results.json": "9e5988b092e39ce2dbe6502ade182debfa09bb373b4b9da571de87f6220011b7"
   },
   "python": "3.11.7",
   "packages": {
@@ -105,5 +101,6 @@
   "window_rule": "original observation axis; finite continuous 96 observations",
   "normalization": "first 85% training rows only; validation excluded",
   "ensemble": true,
-  "blend_weight": 0.47
+  "blend_weight": 0.47,
+  "source_note": "source_sha256은 저장 모델 학습 당시 코드 지문이며, 제출 정리로 파일명과 주석·비교 코드가 변경되었다. 모델과 입력 설정은 유지한다."
 }

@@ -1,12 +1,4 @@
-"""화면이 쓰는 HTTP 껍데기. **계산은 여기 없다.**
-
-예전 판은 이 파일 안에 모델 적재·예측·임계값 산정·비용 계산이 전부 들어 있었고,
-전처리도 `Dashboard/pipeline/` 에 따로 있었다. 그래서 같은 로직이 두 벌이었다 —
-모델링 쪽과 화면 쪽이 **서로 다른 전처리**를 쓰고 있었다.
-
-지금은 전부 `Function/` 에 있다. 이 파일은 요청을 받아 그 함수를 부르고 결과를 돌려줄 뿐이다.
-응답 모양은 예전과 같게 두었다 — 프런트엔드를 고치지 않기 위해서다.
-"""
+"""대시보드 요청을 Function의 예측·비용·AI 함수로 전달하는 FastAPI 서버."""
 from __future__ import annotations
 
 import os
@@ -18,11 +10,11 @@ from fastapi import FastAPI, Header, HTTPException, Query, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-ROOT = Path(__file__).resolve().parents[1]      # Dashboard_v2/
+ROOT = Path(__file__).resolve().parents[1]      # Dashboard/
 REPO = ROOT.parent                              # 저장소 뿌리
-sys.path.insert(0, str(REPO / "Function"))      # 계산은 전부 저기서 가져온다
+sys.path.insert(0, str(REPO / "Function"))      # 공통 계산 모듈 경로
 
-import serving as S                             # noqa: E402
+import power_prediction as S                             # noqa: E402
 
 
 @asynccontextmanager
@@ -141,7 +133,7 @@ def optimize_staffing(spec: StaffingSpec):
     return _staffing(spec)
 
 
-# ── 브리핑·질의 (ChatGPT) ─────────────────────────────────────────
+# AI 요약·질의응답
 # API 키는 요청 헤더 X-OpenAI-Key 로만 받는다. 저장하지 않고 응답·오류 메시지에 담지 않는다.
 class BriefingSpec(BaseModel):
     day: str
@@ -173,7 +165,7 @@ def _llm_error(e: Exception) -> HTTPException:
 
 @app.post("/api/briefing")
 def briefing(spec: BriefingSpec, x_openai_key: str | None = Header(None)):
-    import assistant as A
+    import ai_chat as A
     try:
         return A.briefing(spec.day, spec.cursor, spec.threshold, x_openai_key, spec.model)
     except KeyError as e:
@@ -184,7 +176,7 @@ def briefing(spec: BriefingSpec, x_openai_key: str | None = Header(None)):
 
 @app.post("/api/chat")
 def chat(spec: ChatSpec, x_openai_key: str | None = Header(None)):
-    import assistant as A
+    import ai_chat as A
     if not x_openai_key:
         raise HTTPException(401, "질문에 답하려면 OpenAI API 키가 필요합니다.")
     try:
@@ -203,7 +195,7 @@ class SpeechSpec(BaseModel):
 @app.post("/api/speech")
 def speech(spec: SpeechSpec, x_openai_key: str | None = Header(None)):
     """브리핑을 OpenAI 음성으로 읽는다. 키가 없으면 화면이 브라우저 음성으로 대신 읽는다."""
-    import assistant as A
+    import ai_chat as A
     if not x_openai_key:
         raise HTTPException(401, "음성 합성에는 OpenAI API 키가 필요합니다.")
     try:
