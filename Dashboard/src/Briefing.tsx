@@ -1,10 +1,29 @@
 import {useEffect,useRef,useState} from 'react';
-import {Bot,Eye,EyeOff,KeyRound,RefreshCw,Send,Sparkles} from 'lucide-react';
+import {Bot,Eye,EyeOff,KeyRound,RefreshCw,Send,Sparkles,Volume2,VolumeX} from 'lucide-react';
 import type {Briefing as BriefingData,ChatReply} from './types';
 
 const KEY_STORE='kamp-openai-key';
 const AUTO_STORE='kamp-briefing-auto';
 const readKey=()=>{try{return localStorage.getItem(KEY_STORE)||'';}catch{return '';}};
+const VOICE_STORE='kamp-briefing-voice';
+const canSpeak=typeof window!=='undefined'&&'speechSynthesis' in window;
+
+// 브라우저 내장 음성(Web Speech API)으로 읽을 문장으로 바꾼다 — 서버·키·요금이 필요 없다
+const hm=(h:string,m:string)=>`${Number(h)}시${m==='00'?'':` ${Number(m)}분`}`;
+export function toSpeech(text:string){
+ return text.replace(/\*\*/g,'')
+  .replace(/(\d{1,2}):(\d{2})\s*~\s*(\d{1,2}):(\d{2})/g,(_,a,b,c,d)=>`${hm(a,b)}부터 ${hm(c,d)}까지`)
+  .replace(/(\d{1,2}):(\d{2})/g,(_,a,b)=>hm(a,b))
+  .replace(/\bkW\b/g,'킬로와트').replace(/\+(\d)/g,'플러스 $1').replace(/(^|[^\d])-(\d)/g,'$1마이너스 $2')
+  .replace(/\s*[—·]\s*/g,', ').replace(/\s+/g,' ').trim();
+}
+function speak(text:string,onEnd:()=>void){
+ const synth=window.speechSynthesis;synth.cancel();
+ const u=new SpeechSynthesisUtterance(toSpeech(text));
+ u.lang='ko-KR';u.rate=1.05;
+ const voice=synth.getVoices().find(v=>v.lang.toLowerCase().startsWith('ko'));if(voice)u.voice=voice;
+ u.onend=onEnd;u.onerror=onEnd;synth.speak(u);
+}
 
 // 서버가 쓰는 표기 그대로 — **굵게** 와 줄바꿈만 처리한다
 function Rich({text}:{text:string}){
@@ -24,6 +43,9 @@ export function BriefingPanel({day,cursor,threshold,ready}:{day:string;cursor:nu
  const [brief,setBrief]=useState<BriefingData|null>(null),[loading,setLoading]=useState(false),[error,setError]=useState('');
  const [chat,setChat]=useState<{role:'user'|'assistant';content:string}[]>([]),[question,setQuestion]=useState(''),[asking,setAsking]=useState(false);
  const inflight=useRef(false),wanted=useRef<string>(''),done=useRef<string>('');
+ const [speaking,setSpeaking]=useState(false);
+ const [voiceAuto,setVoiceAuto]=useState(()=>{try{return localStorage.getItem(VOICE_STORE)==='on';}catch{return false;}});
+ const spoken=useRef('');
  const target=`${day}|${cursor}|${threshold??''}|${key?'k':''}`;
 
  const load=async(force=false)=>{
@@ -38,6 +60,12 @@ export function BriefingPanel({day,cursor,threshold,ready}:{day:string;cursor:nu
  const latest=useRef(load);latest.current=load;   // 다시 부를 때는 최신 칸의 load 를 쓴다
  useEffect(()=>{if(auto&&ready)load();},[target,auto,ready]);
  useEffect(()=>{setChat([]);},[day]);
+ // 피크 위험 브리핑만 자동으로 읽는다(켜 둔 경우). 같은 브리핑은 한 번만
+ useEffect(()=>{if(!canSpeak||!voiceAuto||!brief)return;const id=`${brief.label}|${brief.text}`;
+  if(brief.facts?.['피크위험']===true&&spoken.current!==id){spoken.current=id;setSpeaking(true);speak(brief.text,()=>setSpeaking(false));}},[brief,voiceAuto]);
+ useEffect(()=>()=>{if(canSpeak)window.speechSynthesis.cancel();},[]);
+ const readNow=()=>{if(!brief)return;if(speaking){window.speechSynthesis.cancel();setSpeaking(false);return;}setSpeaking(true);speak(brief.text,()=>setSpeaking(false));};
+ const toggleVoice=()=>{const n=!voiceAuto;setVoiceAuto(n);try{localStorage.setItem(VOICE_STORE,n?'on':'off');}catch{}if(!n&&canSpeak){window.speechSynthesis.cancel();setSpeaking(false);}};
 
  const saveKey=()=>{const k=draft.trim();if(!k)return;try{localStorage.setItem(KEY_STORE,k);}catch{}setKey(k);setDraft('');done.current='';};
  const clearKey=()=>{try{localStorage.removeItem(KEY_STORE);}catch{}setKey('');done.current='';};
@@ -54,6 +82,8 @@ export function BriefingPanel({day,cursor,threshold,ready}:{day:string;cursor:nu
   <div className="panel-heading"><div><h2><Sparkles size={18}/> {brief?`${brief.label} 브리핑`:'전력 브리핑'}</h2>
    <p>{brief?`재생 자료 기준 ${brief.confirmedAt}까지 확정값 · ${brief.source==='llm'?`AI 브리핑 (${brief.model})`:'숫자 요약 (API 키 없음)'}`:'다음 15분 예측과 15분 최대치 관리 권고를 15분마다 정리해요.'}</p></div>
    <div className="briefing-actions"><label className="auto-toggle"><input type="checkbox" checked={auto} onChange={toggleAuto}/>자동 갱신</label>
+   {canSpeak&&<label className="auto-toggle" title="새 브리핑이 피크 위험일 때만 자동으로 읽어요"><input type="checkbox" checked={voiceAuto} onChange={toggleVoice}/>위험 시 음성</label>}
+   {canSpeak&&<button className="secondary" onClick={readNow} disabled={!brief} aria-label={speaking?'읽기 멈추기':'브리핑 읽어 주기'}>{speaking?<VolumeX size={16}/>:<Volume2 size={16}/>}{speaking?'멈춤':'읽어 주기'}</button>}
    <button className="secondary" onClick={()=>load(true)} disabled={loading||!day}><RefreshCw size={16} className={loading?'spin':''}/>브리핑 갱신</button></div></div>
   {error&&<div className="briefing-error" role="alert">{error}</div>}
   <div className="briefing-body" aria-live="polite">{brief?<Rich text={brief.text}/>:<p className="muted">{loading?'브리핑을 준비하고 있어요…':'브리핑 갱신을 눌러 시작하세요.'}</p>}</div>
