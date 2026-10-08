@@ -11,7 +11,7 @@
 ```text
 Dataset/    원본(raw)과 모델 입력(preprocessed)
 Function/   전처리·학습·추론·비용 계산·AI 챗 코드 및 달력·요금표
-Model/      ExtraTrees·GRU 모델, 평가 결과, 파일 지문
+Model/      ExtraTrees·GRU 모델, 평가 결과, 시험 예측 CSV, 파일 지문
 Dashboard/  FastAPI 서버와 React·TypeScript 화면
 ```
 
@@ -19,7 +19,7 @@ Dashboard/  FastAPI 서버와 React·TypeScript 화면
 
 ## 실행
 
-검증 환경: Python **3.11.17**, Node.js **24.9.0**, npm **11.6.0**, macOS arm64. 모델 호환성을 위해 `requirements.txt`의 scikit-learn **1.2.2**·PyTorch **2.4.1**을 사용합니다.
+실행 환경: Python **3.11**, Node.js **24**, npm. `.python-version`은 **3.11.17**입니다. 저장 모델 호환성을 위해 `requirements.txt`의 scikit-learn **1.2.2**·PyTorch **2.4.1**을 사용합니다.
 
 저장소 루트에서 실행합니다.
 
@@ -53,7 +53,12 @@ python Function/model_training.py --models et,gru,ensemble
 
 ## 최종 모델과 검증
 
-**ExtraTrees 0.47 + GRU 0.53**을 결합합니다. 과거 전력·달력 정보를 사용하며 GRU의 입력 창은 96구간(하루)입니다.
+**ExtraTrees 0.47 + GRU 0.53**을 결합합니다. 최종 모델에는 생산량과 기상을 입력하지 않습니다.
+
+- **ExtraTrees:** 전력 관련 18개·시간 관련 7개, 총 25개 변수를 사용합니다.
+- **GRU:** 현재 관측값을 포함한 전력 96개를 24단계 × 4값으로 입력하고, 시간·휴무 변수 6개를 결합합니다. 시드 42·2024·7의 예측을 평균합니다.
+
+2021년 자료는 **7월 25일**을 기준으로 날짜 순서대로 분할합니다. 전처리 결과는 학습 19,486행·시험 4,991행이며, 입력 결측과 연속 96구간 조건을 확인한 뒤 ExtraTrees는 학습 19,201행을 사용합니다. GRU는 직전 3개월인 4월 25일~7월 24일의 8,352행을 학습 7,099행·내부 검증 1,253행으로 나눕니다. 두 모델의 시험 행은 동일합니다.
 
 | 모델 | 전진검증 평균 MSE | 시험 MSE |
 |---|---:|---:|
@@ -63,7 +68,31 @@ python Function/model_training.py --models et,gru,ensemble
 
 시험 4,991행 기준 앙상블 MAE **4.6396 kW**, RMSE **6.8235 kW**입니다. 결합 비율은 시험 MSE로 선택했으므로 해당 시험 성능은 독립적인 최종 평가가 아닙니다. 상세 결과는 `Model/results.json`을 참고하세요.
 
-2026-10-06~07에 전처리 재현, 전체 재학습(전진검증 4구간·GRU 3시드), 새 모델 추론, 의존성·화면 빌드, API·브라우저 기능을 검증했습니다. OpenAI SDK의 요청·응답 처리와 도구 호출 흐름은 모의 HTTP 응답으로 확인했습니다.
+## 제출용 시험 예측 결과
+
+`Model/test_predictions.csv`에는 저장된 최종 앙상블로 예측한 **4,991행**의 실제값과 예측값을 담았습니다. 2026-10-08에 저장 모델로 다시 추론하여 CSV의 행 수·시각·값을 확인했으며, MSE **46.5607**은 `Model/results.json`과 일치합니다.
+
+| 열 | 의미 |
+|---|---|
+| `target_time` | 예측 대상인 다음 15분 구간의 시각 |
+| `actual_kw` | 해당 구간의 실제 전력(kW) |
+| `predicted_kw` | 해당 구간의 앙상블 예측 전력(kW) |
+
+대상 시각은 **2021-07-25 00:15~2021-09-14 23:45**입니다. `processed.csv`의 `ts`는 입력 관측 시각이고, CSV의 `target_time`은 `ts + 15분`입니다. 예측값은 화면 표시용 반올림을 적용하지 않고 저장했습니다.
+
+모델이나 데이터를 갱신했다면 CSV도 다시 생성합니다. 가상환경을 활성화하고 저장소 루트의 Python 콘솔(`python`)에서 실행합니다.
+
+```python
+import sys
+sys.path.insert(0, "Function")
+import power_prediction
+
+frame = power_prediction.load()["frame"]
+result = frame[["target_time", "전력", "prediction"]].rename(
+    columns={"전력": "actual_kw", "prediction": "predicted_kw"}
+)
+result.to_csv("Model/test_predictions.csv", index=False)
+```
 
 ## 사용 범위
 
