@@ -93,10 +93,3 @@ result = frame[["target_time", "전력", "prediction"]].rename(
 )
 result.to_csv("Model/test_predictions.csv", index=False)
 ```
-
-## 사용 범위
-
-- 화면은 **2021년 과거 기록 재생**입니다. 실시간 수집·자동 설비 제어는 포함하지 않습니다.
-- 추천 인원은 실제 배치 인원이 아닌 원자료의 파생 인원을 활용한 참고값입니다. 비용은 예측 전력이 한 시간 유지된다는 가정과 **2021년 요금표**를 사용하며 세금 등 실제 청구 항목 전체를 반영하지 않습니다.
-- OpenAI 키는 브라우저에 저장하고 요청 헤더로 전달합니다. 서버는 키를 파일에 저장하지 않습니다. 외부 API 사용에는 연결과 계정 이용 비용이 필요합니다.
-- 제출 시 `.venv/`, `node_modules/`, `dist/`, 캐시, `.git/`, `.env`·API 키는 제외합니다. 화면 글꼴 라이선스는 `Dashboard/public/fonts/LICENSE.txt`에 있습니다.
